@@ -1,0 +1,14 @@
+# Ignore node_modules
+node_modules
+
+# Ignore build outputs
+dist
+build
+
+# Ignore specific files
+*.min.js
+*.json
+*.md
+
+# Ignore all files in the `public` directory
+public/*

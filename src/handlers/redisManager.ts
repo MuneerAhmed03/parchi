@@ -34,6 +34,12 @@ export default class RedisManager {
         return true;
     }
 
+    async allCardSubmitted(roomId:string) :Promise<boolean>{
+        const titleCount = await this.client.sCard(`room:${roomId}:titles`);
+        const playerCount = await this.getRoomPlayerCount(roomId);
+        return titleCount === playerCount;
+    }
+
     async getTitles(roomId: string): Promise<string[]> {
         return await this.client.sMembers(`room:${roomId}:titles`);
     }

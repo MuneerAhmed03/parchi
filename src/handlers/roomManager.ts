@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import  RedisManager  from '@/handlers/redisManager'
 
-export class RoomManager {
+export default class RoomManager {
   private redisManager: RedisManager
 
   constructor() {

@@ -1,4 +1,5 @@
 import RedisManager from "@/handlers/redisManager";
+import { GameError } from "@/utils/GameError";
 
 interface Chit {
   title: string;
@@ -31,12 +32,12 @@ export default class GameLogic {
   ): Promise<void> {
     const gameState = await this.redisManager.getGameState(roomId);
     if (gameState.gameStatus !== "inProgress") {
-      throw new Error("Game is not in progress");
+      throw new GameError("Game is not in progress");
     }
 
     const playerIndex = gameState.players.indexOf(playerId);
     if (playerIndex !== gameState.currentPlayerIndex) {
-      throw new Error("Not your turn");
+      throw new GameError("Not your turn");
     }
 
     const card = gameState.hands[playerIndex][cardIndex];

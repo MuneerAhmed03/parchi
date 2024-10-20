@@ -5,15 +5,20 @@ export default class RedisManager {
   private client: RedisClientType;
 
   constructor() {
-    (this.client = createClient()), this.client.connect();
+    this.client = createClient();
+    this.client.connect();
   }
 
   async createRoom(roomId: string): Promise<void> {
     await this.client.hSet(`room:${roomId}`, "state", "lobby");
   }
 
-  async addPlayertToRoom(roomId: string, playerName: string): Promise<void> {
+  async addPlayerToRoom(roomId: string, playerName: string): Promise<void> {
     await this.client.sAdd(`room:${roomId}:players`, playerName);
+  }
+
+  async removePlayerFromRoom(roomId: string, playerName: string): Promise<void> {
+    await this.client.sRem(`room:${roomId}:players`, playerName);
   }
 
   async getRoomPlayers(roomId: string): Promise<string[]> {
@@ -24,35 +29,27 @@ export default class RedisManager {
     return await this.client.sCard(`room:${roomId}:players`);
   }
 
-  async addTitle(roomId: string, title: string): Promise<boolean> {
-    const exists = await this.client.sIsMember(`room:${roomId}:titles`, title);
-    if (exists) {
-      return false;
-    }
-    await this.client.sAdd(`room:${roomId}:titles`, title);
-    return true;
-  }
+  async submitTitleAndCheck(roomId: string, title: string): Promise<boolean> {
+    const result = await this.client.multi()
+      .sAdd(`room:${roomId}:titles`, title)
+      .sCard(`room:${roomId}:titles`)
+      .sCard(`room:${roomId}:players`)
+      .exec();
 
-  async allCardSubmitted(roomId: string): Promise<boolean> {
-    const titleCount = await this.client.sCard(`room:${roomId}:titles`);
-    const playerCount = await this.getRoomPlayerCount(roomId);
-    return titleCount === playerCount;
+    if (!result) {
+      throw new Error("Redis transaction failed");
+    }
+
+    const [, submittedCount, playerCount] = result;
+    return Number(submittedCount) === Number(playerCount);
   }
 
   async getTitles(roomId: string): Promise<string[]> {
     return await this.client.sMembers(`room:${roomId}:titles`);
   }
 
-  async checkDeck(roomId: string): Promise<boolean> {
-    return true;
-    //checks all title submitted
-  }
-
   async saveGameState(roomId: string, gameState: GameState): Promise<void> {
-    await this.client.set(
-      `room:${roomId}:gameState`,
-      JSON.stringify(gameState),
-    );
+    await this.client.set(`room:${roomId}:gameState`, JSON.stringify(gameState));
   }
 
   async getGameState(roomId: string): Promise<GameState> {
@@ -72,17 +69,12 @@ export default class RedisManager {
   }
 
   async removeRoom(roomId: string): Promise<void> {
-    await this.client.del(`room:${roomId}`);
-    await this.client.del(`room:${roomId}:players`);
-    await this.client.del(`room:${roomId}:titles`);
-    await this.client.del(`room:${roomId}:gameState`);
-  }
-
-  async removePlayerFromRoom(
-    roomId: string,
-    playerName: string,
-  ): Promise<void> {
-    await this.client.sRem(`room:${roomId}:players`, playerName);
+    await this.client.multi()
+      .del(`room:${roomId}`)
+      .del(`room:${roomId}:players`)
+      .del(`room:${roomId}:titles`)
+      .del(`room:${roomId}:gameState`)
+      .exec();
   }
 
   async isRoomFull(roomId: string): Promise<boolean> {

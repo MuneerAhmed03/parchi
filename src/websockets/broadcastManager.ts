@@ -53,4 +53,11 @@ export default class BroadCastManager {
       });
     });
   }
+
+  broadcastError(player:string, errorMessage:string){
+    const playerWs=this.clients.get(player);
+    if(playerWs && playerWs.readyState === WebSocket.OPEN){
+      playerWs.send(JSON.stringify({type :"error",message: errorMessage}))
+    }
+  }
 }

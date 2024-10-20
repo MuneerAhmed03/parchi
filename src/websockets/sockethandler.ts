@@ -3,6 +3,7 @@ import * as http from "http";
 import RedisManager from "@/handlers/redisManager";
 import BroadCastManager from "@/websockets/broadcastManager";
 import GameLogic from "@/handlers/gameLogic";
+import { GameError } from "@/utils/GameError";
 
 export default class WebSocketHandler {
   constructor(
@@ -27,6 +28,7 @@ export default class WebSocketHandler {
   }
 
   private async handleMessage(ws: WebSocket, data: any) {
+    try{
     switch (data.type) {
       case "join_room":
         await this.handleJoinRoom(data.roomId, data.playerId, ws);
@@ -40,6 +42,14 @@ export default class WebSocketHandler {
       case "claim_win":
         await this.handleClaimWin(data.roomId, data.playerId);
     }
+  }catch(error){
+    console.error("Error handling messgae:", error);
+    if( error instanceof GameError){
+      this.broadcastManager.broadcastError(data.playerId,error.message);
+    }else{
+      this.broadcastManager.broadcastError(data.playerId,"An unexpected error occured");
+    }
+  }
   }
 
   private async handleJoinRoom(
@@ -47,18 +57,23 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
+    const isRoomFull = await this.redisManager.isRoomFull(roomId);
+    if (isRoomFull) {
+      ws.send(JSON.stringify({ type: "error", message: "Room is full" }));
+      return;
+    }
     this.broadcastManager.addClient(playerId, ws);
     await this.broadcastManager.broadCastGameState(roomId);
   }
 
-  private async handleSubmitTitle(roomId: string, title: string) {
-    this.redisManager.addTitle(roomId, title);
-    const allTitlesSubmitted = await this.redisManager.allCardSubmitted(roomId);
-    if (allTitlesSubmitted) {
-      this.gameLogic.startGame(roomId);
-      await this.broadcastManager.broadCastGameState(roomId);
-    }
+  private async handleSubmitTitle( roomId: string, title: string) {
+      const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title);
+      if (allTitlesSubmitted) {
+        await this.gameLogic.startGame(roomId);
+        await this.broadcastManager.broadCastGameState(roomId);
+      }
   }
+
 
   private async handlePlayCard(
     roomId: string,

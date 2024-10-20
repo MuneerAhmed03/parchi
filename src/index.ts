@@ -5,8 +5,11 @@ import RedisManager from "@/handlers/redisManager";
 import RoomManager from "@/handlers/roomManager";
 import WebSocketHandler from "@/websockets/sockethandler";
 import BroadcastManager from "@/websockets/broadcastManager";
+import bodyParser from "body-parser";
 
 const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const server = http.createServer(app);
 

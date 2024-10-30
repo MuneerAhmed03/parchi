@@ -31,6 +31,7 @@ export default class WebSocketHandler {
     try{
     switch (data.type) {
       case "join_room":
+        console.log(`${data.playerId} requested to join with data as ${JSON.stringify(data)}`)
         await this.handleJoinRoom(data.roomId, data.playerId, ws);
         break;
       case "submit_title":
@@ -57,31 +58,37 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
-    const isRoomFull = await this.redisManager.isRoomFull(roomId);
-    if (isRoomFull) {
-      ws.send(JSON.stringify({ type: "error", message: "Room is full" }));
-      return;
-    }
+    // const isRoomFull = await this.redisManager.isRoomFull(roomId);
+    // if (isRoomFull) {
+    //   ws.send(JSON.stringify({ type: "error", message: "Room is full" }));
+    //   return;
+    // }
     this.broadcastManager.addClient(playerId, ws);
-    await this.broadcastManager.broadCastGameState(roomId);
+    await this.broadcastManager.broadcastLobby(roomId);
+    // await this.broadcastManager.broadCastGameState(roomId);
   }
 
   private async handleSubmitTitle( roomId: string, title: string) {
       const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title);
       if (allTitlesSubmitted) {
         await this.gameLogic.startGame(roomId);
+        console.log("game started")
+        await this.delay(2000);
         await this.broadcastManager.broadCastGameState(roomId);
       }
   }
-
-
+  delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
   private async handlePlayCard(
     roomId: string,
     playerId: string,
     cardIndex: number,
   ) {
+
     await this.gameLogic.playCard(roomId, playerId, cardIndex);
     await this.broadcastManager.broadCastGameState(roomId);
+    console.log(`${playerId} passes ${cardIndex}`);
   }
 
   private async handleClaimWin(roomId: string, playerId: string) {

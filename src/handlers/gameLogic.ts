@@ -16,7 +16,7 @@ export default class GameLogic {
     const deck = this.createDeck(titles);
     this.shuffleDeck(deck);
     const hands = this.dealHands(deck, players);
-
+    console.log("start game function", roomId);
     await this.redisManager.saveGameState(roomId, {
       players,
       hands,

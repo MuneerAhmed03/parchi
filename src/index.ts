@@ -28,7 +28,8 @@ app.get("/health", async (req, res) => {
 });
 
 app.post("/create-room", async (req, res) => {
-  const roomId = await roomManager.createRoom();
+  const playerName = req.body.playerName;
+  const roomId = await roomManager.createRoom(playerName);
   res.send(roomId);
 });
 

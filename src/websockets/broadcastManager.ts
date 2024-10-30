@@ -16,12 +16,16 @@ export default class BroadCastManager {
   }
 
   async broadCastGameState(roomId: string): Promise<void> {
+    const keys = Array.from(this.clients.keys());
+    console.log(keys);
+    console.log("game state broadcasting attempt")
     const gameState = await this.redisManager.getGameState(roomId);
-
+    // console.log(JSON.stringify(gameState));
     gameState.players.forEach((player, index) => {
       const playerWs = this.clients.get(player);
       if (playerWs && playerWs.readyState === WebSocket.OPEN) {
-        const playerView = this.getPlayerView(gameState, index);
+        const playerView =  this.getPlayerView(gameState, index);
+        // console.log("player view: ",playerView);
         playerWs.send(
           JSON.stringify({
             type: "gameState",
@@ -32,7 +36,22 @@ export default class BroadCastManager {
     });
   }
 
-  async getPlayerView(gameState: GameState, playerIndex: number) {
+  async broadcastLobby(roomId:string) : Promise<void>{
+    const players = await this.redisManager.getRoomPlayers(roomId)
+    players.forEach(player => {
+      const playerWs = this.clients.get(player);
+      if (playerWs && playerWs.readyState === WebSocket.OPEN){
+        playerWs.send(
+          JSON.stringify({
+            type: "lobby",
+            data : players,
+          })
+        )
+      }
+    })
+  }
+
+  getPlayerView(gameState: GameState, playerIndex: number) {
     const playerView = {
       players: gameState.players,
       currentPlayerIndex: gameState.currentPlayerIndex,

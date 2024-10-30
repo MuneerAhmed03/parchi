@@ -9,11 +9,24 @@ export default class RedisManager {
     this.client.connect();
   }
 
-  async createRoom(roomId: string): Promise<void> {
-    await this.client.hSet(`room:${roomId}`, "state", "lobby");
+  // async createRoom(roomId: string, playerId: string): Promise<void> {
+  //   // await this.client.multi()
+  //   //   .hSet(`room:${roomId}`, "state", "lobby")
+  //   //   .sAdd(`room:${roomId}:players`, playerId)
+  //   //   .exec();
+
+
+  // }
+  async createRoom(roomId: string,playerId:string) :Promise<void>{
+    // await this.client.hSet(`room:${roomId}`, "state", "lobby")
+    await this.client.multi()
+                    .hSet(`room:${roomId}`, "state", "lobby")
+                    .sAdd(`room:${roomId}:players`, playerId)
+                    .exec()
   }
 
   async addPlayerToRoom(roomId: string, playerName: string): Promise<void> {
+    console.log(`${playerName} added to the room`)
     await this.client.sAdd(`room:${roomId}:players`, playerName);
   }
 

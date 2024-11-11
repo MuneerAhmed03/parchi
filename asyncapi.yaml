@@ -1,0 +1,89 @@
+asyncapi: 2.0.0
+info:
+  title: Parchi Game WebSocket API
+  version: 1.0.0
+  description: |
+    WebSocket API for real-time interactions in the Parchi game, allowing players to join rooms, submit titles, play cards, and claim victory. The server provides real-time updates to all connected clients on game state changes.
+
+channels:
+  game/{roomId}:
+    description: WebSocket connection for activities within a specific game room.
+    parameters:
+      roomId:
+        description: Unique identifier for the game room.
+        schema:
+          type: string
+
+    subscribe:
+      summary: Messages sent from client to server for player actions.
+      message:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [join_room, submit_title, play_card, claim_win]
+              description: |
+                Specifies the type of action the player wants to perform. Options:
+                - `join_room`: Join a game room.
+                - `submit_title`: Submit a title for a card.
+                - `play_card`: Play a card in the game.
+                - `claim_win`: Claim a win in the game.
+            playerId:
+              type: string
+              description: Unique identifier of the player.
+            cardIndex:
+              type: integer
+              description: Required for `play_card` action, representing the index of the card to be played.
+            title:
+              type: string
+              description: Required for `submit_title` action, representing the title a player submits.
+
+
+    publish:
+      summary: Broadcasts from server to client with game updates.
+      message:
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [gameState, lobby, error, game_end]
+              description: |
+                Defines the event type for the broadcast. Options:
+                - `gameState`: Updates the current game state (e.g., players, turn order).
+                - `lobby`: Provides lobby-specific details (e.g., available rooms).
+                - `error`: Communicates any error messages to the clients.
+                - `game_end`: Notifies clients that the game has ended.
+            data:
+              type: object
+              description: Contains data relevant to the specific event type.
+              properties:
+                players:
+                  type: array
+                  items:
+                    type: string
+                  description: List of players currently in the game.
+                currentPlayerIndex:
+                  type: integer
+                  description: Index of the player whose turn it currently is.
+                gameStatus:
+                  type: string
+                  description: Status of the game (e.g., `inProgress`, `ended`).
+                winner:
+                  type: string
+                  description: ID of the player who won the game (present only if `gameStatus` is `ended`).
+                hand:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        description: Title of the card.
+                      id:
+                        type: string
+                        description: Unique identifier for the card.
+

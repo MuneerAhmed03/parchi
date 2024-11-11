@@ -1,0 +1,6 @@
+title: API Documentation
+apis:
+  openapi:
+    root: openapi.yaml  # Path to your OpenAPI file
+  asyncapi:
+    root: asyncapi.yaml  # Path to your AsyncAPI file

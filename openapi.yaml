@@ -1,0 +1,73 @@
+openapi: 3.0.1
+info:
+  title: Parchi Game API
+  version: 1.0.0
+  description: API for creating and joining game rooms for the Parchi game.
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      responses:
+        '200':
+          description: Server is running.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Running"
+
+  /create-room:
+    post:
+      summary: Create a new game room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                playerName:
+                  type: string
+                  description: The name of the player creating the room
+              required:
+                - playerName
+      responses:
+        '200':
+          description: Room ID
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "abcd1234"
+
+  /join-room:
+    post:
+      summary: Join an existing game room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roomId:
+                  type: string
+                  description: The ID of the room to join
+                playerName:
+                  type: string
+                  description: The name of the player joining the room
+              required:
+                - roomId
+                - playerName
+      responses:
+        '200':
+          description: Success status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true

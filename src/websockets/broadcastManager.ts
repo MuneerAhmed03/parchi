@@ -7,48 +7,69 @@ export default class BroadCastManager {
 
   constructor(private redisManager: RedisManager) {}
 
-  addClient(playerId: string, ws: WebSocket) {
-    this.clients.set(playerId, ws);
+  async addClient(playerId: string,roomId:string, ws: WebSocket) {
+    // this.clients.set(playerId, ws);
+    await this.redisManager.setPlayerConnection(playerId,roomId,true);
+
+    const heartbeat = setInterval( async ()=>{
+      if(ws.readyState == WebSocket.OPEN){
+        ws.ping()
+      }else{
+          clearInterval(heartbeat)
+          await this.redisManager.handlePlayerDisconnect(playerId)
+      }
+    },3000)
+
+    ws.on('close', async () => {
+      clearInterval(heartbeat);
+      await this.redisManager.handlePlayerDisconnect(playerId);
+    }); 
   }
 
   removeClient(roomId: string) {
     this.clients.delete(roomId);
   }
 
-  async broadCastGameState(roomId: string): Promise<void> {
+  async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>): Promise<void> {
     const keys = Array.from(this.clients.keys());
     console.log(keys);
     console.log("game state broadcasting attempt")
     const gameState = await this.redisManager.getGameState(roomId);
-    // console.log(JSON.stringify(gameState));
-    gameState.players.forEach((player, index) => {
-      const playerWs = this.clients.get(player);
-      if (playerWs && playerWs.readyState === WebSocket.OPEN) {
-        const playerView =  this.getPlayerView(gameState, index);
-        // console.log("player view: ",playerView);
-        playerWs.send(
-          JSON.stringify({
-            type: "gameState",
-            data: playerView,
-          }),
-        );
-      }
-    });
+
+    const connectedPlayers = await this.redisManager.getConnectedPlayers(roomId);
+    for ( const playerId of connectedPlayers){
+        const ws =  wsMap.get(playerId);
+        if(ws?.readyState === WebSocket.OPEN){
+          const playerIndex = gameState.players.indexOf(playerId);
+          const playerView = this.getPlayerView(gameState,playerIndex);
+          ws.send(
+            JSON.stringify({
+              type: "gameState",
+              data: playerView,
+            }),
+          );  
+        }
+    }
   }
 
-  async broadcastLobby(roomId:string) : Promise<void>{
-    const players = await this.redisManager.getRoomPlayers(roomId)
-    players.forEach(player => {
-      const playerWs = this.clients.get(player);
-      if (playerWs && playerWs.readyState === WebSocket.OPEN){
-        playerWs.send(
+  async broadcastLobby(roomId:string, wsMap:Map<string,WebSocket>) : Promise<void>{
+    // const players = await this.redisManager.getRoomPlayers(roomId)
+    const [players, connectedPlayers] = await Promise.all([
+      this.redisManager.getRoomPlayers(roomId),
+      this.redisManager.getConnectedPlayers(roomId)
+    ])
+
+    for (const playerId of connectedPlayers){
+      const ws = wsMap.get(playerId);
+      if(ws?.readyState === WebSocket.OPEN){
+        ws.send(
           JSON.stringify({
-            type: "lobby",
-            data : players,
+            type:"lobby",
+            data: players,
           })
         )
       }
-    })
+    }
   }
 
   getPlayerView(gameState: GameState, playerIndex: number) {

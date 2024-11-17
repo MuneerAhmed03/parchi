@@ -6,11 +6,24 @@ import GameLogic from "@/handlers/gameLogic";
 import { GameError } from "@/utils/GameError";
 
 export default class WebSocketHandler {
+  private wsMap:Map<string, WebSocket> = new Map();
   constructor(
     private gameLogic: GameLogic,
     private redisManager: RedisManager,
     private broadcastManager: BroadCastManager,
-  ) {}
+  ) {
+    this.redisManager.cleanupConnections()
+    setInterval(this.checkConnections.bind(this),60000)
+  }
+
+  private async checkConnections(): Promise<void> {
+    for(const [playerId,ws] of this.wsMap.entries()){
+      if (ws.readyState !== WebSocket.OPEN) {
+        this.wsMap.delete(playerId);
+        await this.redisManager.handlePlayerDisconnect(playerId);
+      }
+    } 
+  }
 
   onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
     const wss = new WebSocketServer({ noServer: true });
@@ -58,13 +71,9 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
-    // const isRoomFull = await this.redisManager.isRoomFull(roomId);
-    // if (isRoomFull) {
-    //   ws.send(JSON.stringify({ type: "error", message: "Room is full" }));
-    //   return;
-    // }
-    this.broadcastManager.addClient(playerId, ws);
-    await this.broadcastManager.broadcastLobby(roomId);
+    this.wsMap.set(playerId,ws);
+    await this.broadcastManager.addClient(playerId,roomId,ws)
+    await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     // await this.broadcastManager.broadCastGameState(roomId);
   }
 
@@ -74,7 +83,7 @@ export default class WebSocketHandler {
         await this.gameLogic.startGame(roomId);
         console.log("game started")
         await this.delay(2000);
-        await this.broadcastManager.broadCastGameState(roomId);
+        await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
       }
   }
   delay(ms: number) {
@@ -87,7 +96,7 @@ export default class WebSocketHandler {
   ) {
 
     await this.gameLogic.playCard(roomId, playerId, cardIndex);
-    await this.broadcastManager.broadCastGameState(roomId);
+    await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
     console.log(`${playerId} passes ${cardIndex}`);
   }
 
@@ -99,6 +108,6 @@ export default class WebSocketHandler {
         winner: playerId,
       });
     }
-    await this.broadcastManager.broadCastGameState(roomId);
+    await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
   }
 }

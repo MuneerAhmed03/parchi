@@ -12,7 +12,6 @@ export default class WebSocketHandler {
     private redisManager: RedisManager,
     private broadcastManager: BroadCastManager,
   ) {
-    this.redisManager.cleanupConnections()
     setInterval(this.checkConnections.bind(this),60000)
   }
 
@@ -78,12 +77,13 @@ export default class WebSocketHandler {
   }
 
   private async handleSubmitTitle( roomId: string, title: string) {
+      console.log("title submission triggered")
       const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title);
       if (allTitlesSubmitted) {
         await this.gameLogic.startGame(roomId);
         console.log("game started")
         await this.delay(2000);
-        await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
+        await this.broadcastManager.broadCastGameState(roomId,this.wsMap,"game_start");
       }
   }
   delay(ms: number) {

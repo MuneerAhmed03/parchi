@@ -18,7 +18,7 @@ export default class BroadCastManager {
           clearInterval(heartbeat)
           await this.redisManager.handlePlayerDisconnect(playerId)
       }
-    },3000)
+    },60000)
 
     ws.on('close', async () => {
       clearInterval(heartbeat);
@@ -26,15 +26,12 @@ export default class BroadCastManager {
     }); 
   }
 
-  // removeClient(roomId: string) {
-  //   this.clients.delete(roomId);
-  // }
-
-  async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>): Promise<void> {
+  async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>, messageType?:string): Promise<void> {
     // const keys = Array.from(this.clients.keys());
     // console.log(keys);
     console.log("game state broadcasting attempt")
     const gameState = await this.redisManager.getGameState(roomId);
+  
 
     const connectedPlayers = await this.redisManager.getConnectedPlayers(roomId);
     for ( const playerId of connectedPlayers){
@@ -44,7 +41,7 @@ export default class BroadCastManager {
           const playerView = this.getPlayerView(gameState,playerIndex);
           ws.send(
             JSON.stringify({
-              type: "gameState",
+              type: messageType ? messageType : "gameState",
               data: playerView,
             }),
           );  

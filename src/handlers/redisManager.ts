@@ -18,48 +18,41 @@ export default class RedisManager {
     // await this.client.hSet(`room:${roomId}`, "state", "lobby")
     await this.client.multi()
       .hSet(`room:${roomId}`, "state", "lobby")
-      .sAdd(`room:${roomId}:players`, playerId)
+      .hSet(`room:${roomId}:players`, playerId,JSON.stringify({connected:"true"}))
       .exec()
   }
 
   async addPlayerToRoom(roomId: string, playerId: string): Promise<void> {
     console.log(`${playerId} added to the room`)
     const maxplayers = 4;
-    const result = await this.client.multi()
-      .sAdd(`room:${roomId}:players`, playerId)
-      .sCard(`room:${roomId}:players`)
-        .exec();
-
-    if (!result) {
-      throw new Error("Redis transaction failed while adding player to room");
+    const playerCount = await this.getRoomPlayerCount(roomId);
+    
+    if(playerCount > maxplayers){
+      throw new Error("Room Full")
     }
 
-    const [, playerCount] = result
-
-    if (Number(playerCount) > maxplayers) {
-      await this.client.sRem(`room:${roomId}:players`, playerId);
-      throw new Error("Room is full");
-    }
+    await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify({ connected: true }));
     console.log(`${playerId} successfully added to room ${roomId}`);
+
   }
 
   async removePlayerFromRoom(roomId: string, playerId: string): Promise<void> {
-    await this.client.sRem(`room:${roomId}:players`, playerId);
+    await this.client.hDel(`room:${roomId}:players`, playerId);
   }
 
   async getRoomPlayers(roomId: string): Promise<string[]> {
-    return await this.client.sMembers(`room:${roomId}:players`);
+    return Object.keys(await this.client.hGetAll(`room:${roomId}:players`));
   }
 
   async getRoomPlayerCount(roomId: string): Promise<number> {
-    return await this.client.sCard(`room:${roomId}:players`);
+    return await this.client.hLen(`room:${roomId}:players`);
   }
 
   async submitTitleAndCheck(roomId: string, title: string): Promise<boolean> {
     const result = await this.client.multi()
       .sAdd(`room:${roomId}:titles`, title)
       .sCard(`room:${roomId}:titles`)
-      .sCard(`room:${roomId}:players`)
+      .hLen(`room:${roomId}:players`)
       .exec();
 
     if (!result) {
@@ -113,49 +106,48 @@ export default class RedisManager {
   }
 
   async setPlayerConnection(playerId: string, roomId: string, isConnected: boolean): Promise<void> {
-    const multi = this.client.multi()
-
-    if (isConnected) {
-      multi.sAdd("connected_players", playerId);
-      multi.sAdd(`room:${roomId}:connected_players`, playerId)
-      multi.hSet(`player_room`, playerId, roomId)
-    } else {
-      multi.sRem("connected_players", playerId);
-      const playerRoom = await this.client.hGet('player_rooms', playerId);
-      if (playerRoom) {
-        multi.sRem(`room:${roomId}:connected_players`, playerId)
-      }
-      multi.hDel(`player_room`, playerId)
+    const playerData = await this.client.hGet(`room:${roomId}:players`,playerId);
+    if(playerData){
+      const player = JSON.parse(playerData);
+      player.connected= isConnected;
+      await this.client.hSet(`room:${roomId}:players`,playerId,JSON.stringify(player));
     }
-    await multi.exec()
   }
 
   async getConnectedPlayers(roomId: string): Promise<string[]> {
-    return await this.client.sMembers(`room:${roomId}:connected_players`);
+    const players = await this.client.hGetAll(`room:${roomId}:players`);
+    return Object.entries(players)
+      .filter(([, data]) => JSON.parse(data).connected)
+      .map(([playerId]) => playerId);
+
   }
 
-  async isPlayerConnected(playerId: string): Promise<boolean> {
-    return await this.client.sIsMember('connected_players', playerId);
+  async isPlayerConnected(playerId: string,roomId:string): Promise<boolean> {
+    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);
+    if (!playerData) return false;
+
+    const player = JSON.parse(playerData);
+    return player.connected === true;
   }
 
   async getPlayerRoom(playerId: string): Promise<string | null> {
     return await this.client.hGet('player_room', playerId) || "unknown";
   }
 
-  async cleanupConnections(): Promise<void> {
-    const multi = this.client.multi();
+  // async cleanupConnections(): Promise<void> {
+  //   const multi = this.client.multi();
 
-    const rooms = await this.client.keys('room:*:connected_players');
+  //   const rooms = await this.client.keys('room:*:connected_players');
 
-    for (const roomKey of rooms) {
-      multi.del(roomKey);
-    }
-    multi.del('connected_players');
-    multi.del('player_room')
-    // multi.del('player_rooms');
+  //   for (const roomKey of rooms) {
+  //     multi.del(roomKey);
+  //   }
+  //   multi.del('connected_players');
+  //   multi.del('player_room')
+  //   // multi.del('player_rooms');
 
-    await multi.exec();
-  }
+  //   await multi.exec();
+  // }
 
   async handlePlayerDisconnect(playerId: string) {
     const roomId = await this.getPlayerRoom(playerId)
@@ -171,8 +163,6 @@ export default class RedisManager {
 
   async cleanupRoom(roomId: string) {
     const multi = this.client.multi();
-
-    multi.del(`room:${roomId}:connected_players`);
     multi.del(`room:${roomId}:players`);
     multi.del(`room:${roomId}:titles`);
     multi.del(`room:${roomId}:gameState`);

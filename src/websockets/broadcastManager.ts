@@ -3,7 +3,7 @@ import RedisManager from "@/handlers/redisManager";
 import GameState from "@/model/gameState";
 
 export default class BroadCastManager {
-  private clients: Map<string, WebSocket> = new Map();
+  // private clients: Map<string, WebSocket> = new Map();
 
   constructor(private redisManager: RedisManager) {}
 
@@ -26,13 +26,13 @@ export default class BroadCastManager {
     }); 
   }
 
-  removeClient(roomId: string) {
-    this.clients.delete(roomId);
-  }
+  // removeClient(roomId: string) {
+  //   this.clients.delete(roomId);
+  // }
 
   async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>): Promise<void> {
-    const keys = Array.from(this.clients.keys());
-    console.log(keys);
+    // const keys = Array.from(this.clients.keys());
+    // console.log(keys);
     console.log("game state broadcasting attempt")
     const gameState = await this.redisManager.getGameState(roomId);
 
@@ -83,10 +83,10 @@ export default class BroadCastManager {
     return playerView;
   }
 
-  braoadCastToRoon(roomId: string, message: any) {
+  broadCastToRoom(roomId: string, message: any, wsMap:Map<string,WebSocket>) {
     this.redisManager.getRoomPlayers(roomId).then((players) => {
       players.forEach((player) => {
-        const playerWs = this.clients.get(player);
+        const playerWs =  wsMap.get(player);
         if (playerWs && playerWs.readyState === WebSocket.OPEN) {
           playerWs.send(JSON.stringify(message));
         }
@@ -94,8 +94,8 @@ export default class BroadCastManager {
     });
   }
 
-  broadcastError(player:string, errorMessage:string){
-    const playerWs=this.clients.get(player);
+  broadcastError(player:string, errorMessage:string,wsMap:Map<string,WebSocket>){
+    const playerWs=wsMap.get(player);
     if(playerWs && playerWs.readyState === WebSocket.OPEN){
       playerWs.send(JSON.stringify({type :"error",message: errorMessage}))
     }

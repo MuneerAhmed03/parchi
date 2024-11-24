@@ -59,9 +59,9 @@ export default class WebSocketHandler {
   }catch(error){
     console.error("Error handling messgae:", error);
     if( error instanceof GameError){
-      this.broadcastManager.broadcastError(data.playerId,error.message);
+      this.broadcastManager.broadcastError(data.playerId,error.message,this.wsMap);
     }else{
-      this.broadcastManager.broadcastError(data.playerId,"An unexpected error occured");
+      this.broadcastManager.broadcastError(data.playerId,"An unexpected error occured",this.wsMap);
     }
   }
   }
@@ -103,11 +103,17 @@ export default class WebSocketHandler {
   private async handleClaimWin(roomId: string, playerId: string) {
     const isWinner = await this.gameLogic.claimWin(roomId, playerId);
     if (isWinner) {
-      this.broadcastManager.braoadCastToRoon(roomId, {
+      this.broadcastManager.broadCastToRoom(roomId, {
         type: "game_end",
         winner: playerId,
-      });
+      },this.wsMap);
+      await this.redisManager.removeRoom(roomId);
+      
+    }else {
+      this.broadcastManager.broadCastToRoom(roomId, {
+        type: "game_continue",
+        text: `${playerId} made wrong thap boink`,
+      },this.wsMap);
     }
-    await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
   }
 }

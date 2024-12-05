@@ -21,6 +21,9 @@ yarn-error.log*
 *.sln
 *.sw?
 
+
+repomix-output.txt
+
 # Miscellaneous
 .DS_Store
 Thumbs.db

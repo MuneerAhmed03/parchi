@@ -11,19 +11,18 @@ export default class RoomManager {
     this.roomIdGenerator = RoomIdGenerator.getInstance(this.redisManager)
   }
 
-  async createRoom(playerId:string): Promise<string> {
+  async createRoom(playerId:string,playerName:string): Promise<string> {
     const roomId = await this.roomIdGenerator.generateRoomId();
-    await this.redisManager.createRoom(roomId,playerId);
+    await this.redisManager.createRoom(roomId,playerId,playerName);
     return roomId;
   }
 
-  async joinRoom(roomId: string, playerId: string): Promise<boolean> {
-    // this.logCallerInfo()
+  async joinRoom(roomId: string, playerId: string,playerName:string): Promise<boolean> {
     const isRoomFull = await this.redisManager.isRoomFull(roomId);
     if (isRoomFull) {
       return false;
     }
-    await this.redisManager.addPlayerToRoom(roomId, playerId);
+    await this.redisManager.addPlayerToRoom(roomId, playerId,playerName);
     return true;
   }
 }

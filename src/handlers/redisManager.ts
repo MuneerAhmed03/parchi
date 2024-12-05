@@ -1,6 +1,5 @@
 import { createClient, RedisClientType } from "redis";
-import GameState from "@/model/gameState";
-import { connected } from "process";
+import GameState, {Player} from "@/model/gameState";
 
 export default class RedisManager {
   private client: RedisClientType;
@@ -14,24 +13,31 @@ export default class RedisManager {
     return exists === 1;
   }
 
-  async createRoom(roomId: string, playerId: string): Promise<void> {
-    // await this.client.hSet(`room:${roomId}`, "state", "lobby")
+  async createRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
     await this.client.multi()
       .hSet(`room:${roomId}`, "state", "lobby")
-      .hSet(`room:${roomId}:players`, playerId,JSON.stringify({connected:"true"}))
+      .hSet(`room:${roomId}:players`, playerId, JSON.stringify
+        ({
+          name: playerName,
+          connected: "true"
+        }))
       .exec()
   }
 
-  async addPlayerToRoom(roomId: string, playerId: string): Promise<void> {
+  async addPlayerToRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
     console.log(`${playerId} added to the room`)
     const maxplayers = 4;
     const playerCount = await this.getRoomPlayerCount(roomId);
-    
-    if(playerCount > maxplayers){
+
+    if (playerCount > maxplayers) {
       throw new Error("Room Full")
     }
 
-    await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify({ connected: true }));
+    await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify(
+      {
+        name: playerName,
+        connected: true
+      }));
     console.log(`${playerId} successfully added to room ${roomId}`);
 
   }
@@ -40,8 +46,16 @@ export default class RedisManager {
     await this.client.hDel(`room:${roomId}:players`, playerId);
   }
 
-  async getRoomPlayers(roomId: string): Promise<string[]> {
-    return Object.keys(await this.client.hGetAll(`room:${roomId}:players`));
+  async getRoomPlayers(roomId: string): Promise<Player[]> {
+    const players = await this.client.hGetAll(`room:${roomId}:players`)
+    return Object.keys(players).map(([key,value])=>{
+      const parsedVal = JSON.parse(value);
+      return{
+        id:key,
+        name:parsedVal.playerName,
+        isConnected:parsedVal.isConnected
+      }
+    });
   }
 
   async getRoomPlayerCount(roomId: string): Promise<number> {
@@ -106,23 +120,22 @@ export default class RedisManager {
   }
 
   async setPlayerConnection(playerId: string, roomId: string, isConnected: boolean): Promise<void> {
-    const playerData = await this.client.hGet(`room:${roomId}:players`,playerId);
-    if(playerData){
+    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);
+    if (playerData) {
       const player = JSON.parse(playerData);
-      player.connected= isConnected;
-      await this.client.hSet(`room:${roomId}:players`,playerId,JSON.stringify(player));
+      player.connected = isConnected;
+      await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify(player));
     }
   }
 
-  async getConnectedPlayers(roomId: string): Promise<string[]> {
-    const players = await this.client.hGetAll(`room:${roomId}:players`);
-    return Object.entries(players)
-      .filter(([, data]) => JSON.parse(data).connected)
-      .map(([playerId]) => playerId);
+  // async getConnectedPlayers(roomId: string): Promise<string[]> {
+  //   // const players = await this.client.hGetAll(`room:${roomId}:players`);
+  //   const players =  await this.getRoomPlayers(roomId);
+  //   return players.filter(player => player.)
 
-  }
+  // }
 
-  async isPlayerConnected(playerId: string,roomId:string): Promise<boolean> {
+  async isPlayerConnected(playerId: string, roomId: string): Promise<boolean> {
     const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);
     if (!playerData) return false;
 
@@ -134,27 +147,12 @@ export default class RedisManager {
     return await this.client.hGet('player_room', playerId) || "unknown";
   }
 
-  // async cleanupConnections(): Promise<void> {
-  //   const multi = this.client.multi();
-
-  //   const rooms = await this.client.keys('room:*:connected_players');
-
-  //   for (const roomKey of rooms) {
-  //     multi.del(roomKey);
-  //   }
-  //   multi.del('connected_players');
-  //   multi.del('player_room')
-  //   // multi.del('player_rooms');
-
-  //   await multi.exec();
-  // }
-
   async handlePlayerDisconnect(playerId: string) {
     const roomId = await this.getPlayerRoom(playerId)
     if (roomId) {
       await this.setPlayerConnection(playerId, roomId, false);
 
-      const connectedPlayers = await this.getConnectedPlayers(roomId)
+      const connectedPlayers = (await this.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
       if (connectedPlayers.length == 0) {
         await this.cleanupRoom(roomId)
       }

@@ -47,7 +47,7 @@ export default class WebSocketHandler {
         await this.handleJoinRoom(data.roomId, data.playerId, ws);
         break;
       case "submit_title":
-        await this.handleSubmitTitle(data.roomId, data.title);
+        await this.handleSubmitTitle(data.roomId, data.title,data.playerId);
         break;
       case "play_card":
         await this.handlePlayCard(data.roomId, data.playerId, data.cardIndex);
@@ -73,17 +73,23 @@ export default class WebSocketHandler {
     this.wsMap.set(playerId,ws);
     await this.broadcastManager.addClient(playerId,roomId,ws)
     await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
-    // await this.broadcastManager.broadCastGameState(roomId);
   }
 
-  private async handleSubmitTitle( roomId: string, title: string) {
-      console.log("title submission triggered")
+  private async handleSubmitTitle( roomId: string, title: string,playerId:string) {
       const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title);
       if (allTitlesSubmitted) {
         await this.gameLogic.startGame(roomId);
         console.log("game started")
         await this.delay(2000);
         await this.broadcastManager.broadCastGameState(roomId,this.wsMap,"game_start");
+      }else{
+        this.broadcastManager.broadCastToRoom(roomId,{
+          type: "title_submit",
+          data:{
+            playerId,
+            title
+          }
+        },this.wsMap)
       }
   }
   delay(ms: number) {

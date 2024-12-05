@@ -15,7 +15,7 @@ export default class GameLogic {
 
     const deck = this.createDeck(titles);
     this.shuffleDeck(deck);
-    const hands = this.dealHands(deck, players);
+    const hands = this.dealHands(deck, players.length);
     console.log("start game function", roomId);
     await this.redisManager.saveGameState(roomId, {
       players,
@@ -35,7 +35,7 @@ export default class GameLogic {
       throw new GameError("Game is not in progress");
     }
 
-    const playerIndex = gameState.players.indexOf(playerId);
+    const playerIndex = gameState.players.findIndex(player => player.id === playerId);
     if (playerIndex !== gameState.currentPlayerIndex) {
       throw new GameError("Not your turn");
     }
@@ -53,7 +53,7 @@ export default class GameLogic {
 
   async claimWin(roomId: string, playerId: string): Promise<boolean> {
     const gameState = await this.redisManager.getGameState(roomId);
-    const playerIndex = gameState.players.indexOf(playerId);
+    const playerIndex = gameState.players.findIndex(player => player.id === playerId);
     const hand = gameState.hands[playerIndex];
 
     if (this.verifyWin(hand)) {
@@ -62,7 +62,6 @@ export default class GameLogic {
       await this.redisManager.saveGameState(roomId, gameState);
       return true;
     }
-
     return false;
   }
 
@@ -83,9 +82,9 @@ export default class GameLogic {
     }
   }
 
-  dealHands(deck: Chit[], players: string[]) {
+  dealHands(deck: Chit[], players: number) {
     const hands: Chit[][] = [];
-    for (let i = 0; i < players.length; i++) {
+    for (let i = 0; i < players; i++) {
       hands.push(deck.splice(0, 4));
     }
     return hands;

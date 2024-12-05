@@ -29,14 +29,16 @@ app.get("/health", async (req, res) => {
 
 app.post("/create-room", async (req, res) => {
   const playerId = req.body.playerId;
-  const roomId = await roomManager.createRoom(playerId);
+  const playerName = req.body.playerName;
+  const roomId = await roomManager.createRoom(playerId,playerName);
   res.send(roomId);
 });
 
 app.post("/join-room", async (req, res) => {
   const roomId = req.body.roomId;
   const playerId = req.body.playerId;
-  const success = await roomManager.joinRoom(roomId, playerId);
+  const playerName = req.body.playerName;
+  const success = await roomManager.joinRoom(roomId, playerId,playerName);
   res.send({ success });
 });
 

@@ -4,24 +4,46 @@ import RedisManager from "@/handlers/redisManager";
 import BroadCastManager from "@/websockets/broadcastManager";
 import GameLogic from "@/handlers/gameLogic";
 import { GameError } from "@/utils/GameError";
+import { ErrorHandler } from "@/utils/ErrorHandler";
 
 export default class WebSocketHandler {
-  private wsMap:Map<string, WebSocket> = new Map();
+  private wsMap: Map<string, WebSocket> = new Map();
+  private heartbeatInterval = 30000; // 30 seconds
+
   constructor(
     private gameLogic: GameLogic,
     private redisManager: RedisManager,
     private broadcastManager: BroadCastManager,
   ) {
-    setInterval(this.checkConnections.bind(this),60000)
+    setInterval(this.checkConnections.bind(this), this.heartbeatInterval);
   }
 
   private async checkConnections(): Promise<void> {
-    for(const [playerId,ws] of this.wsMap.entries()){
-      if (ws.readyState !== WebSocket.OPEN) {
-        this.wsMap.delete(playerId);
-        await this.redisManager.handlePlayerDisconnect(playerId);
+    for (const [playerId, ws] of this.wsMap.entries()) {
+      if (!this.isAlive(ws)) {
+        await this.handleDisconnect(playerId, ws);
+      } else {
+        this.ping(ws);
       }
-    } 
+    }
+  }
+
+  private isAlive(ws: WebSocket): boolean {
+    return ws.readyState === WebSocket.OPEN;
+  }
+
+  private ping(ws: WebSocket) {
+    try {
+      ws.ping();
+    } catch (error) {
+      console.error('Ping failed:', error);
+    }
+  }
+
+  private async handleDisconnect(playerId: string, ws: WebSocket) {
+    ws.terminate();
+    this.wsMap.delete(playerId);
+    await this.redisManager.handlePlayerDisconnect(playerId);
   }
 
   onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
@@ -33,36 +55,65 @@ export default class WebSocketHandler {
 
   private handleConnection(ws: WebSocket) {
     ws.on("message", async (message: string) => {
-      const data = JSON.parse(message);
-      await this.handleMessage(ws, data);
+      try {
+        const data = JSON.parse(message);
+        await this.handleMessage(ws, data);
+      } catch (error) {
+        console.error('Message handling error:', error);
+      }
     });
-    ws.on("close", async () => {});
+
+    ws.on("pong", () => {
+      (ws as any).isAlive = true;
+    });
+
+    ws.on("error", (error) => {
+      console.error('WebSocket error:', error);
+    });
+
+    ws.on("close", async () => {
+      const playerId = this.getPlayerIdBySocket(ws);
+      if (playerId) {
+        await this.handleDisconnect(playerId, ws);
+      }
+    });
+
+    (ws as any).isAlive = true;
+  }
+
+  private getPlayerIdBySocket(ws: WebSocket): string | undefined {
+    for (const [playerId, socket] of this.wsMap.entries()) {
+      if (socket === ws) return playerId;
+    }
+    return undefined;
   }
 
   private async handleMessage(ws: WebSocket, data: any) {
-    try{
-    switch (data.type) {
-      case "join_room":
-        console.log(`${data.playerId} requested to join with data as ${JSON.stringify(data)}`)
-        await this.handleJoinRoom(data.roomId, data.playerId, ws);
-        break;
-      case "submit_title":
-        await this.handleSubmitTitle(data.roomId, data.title,data.playerId);
-        break;
-      case "play_card":
-        await this.handlePlayCard(data.roomId, data.playerId, data.cardIndex);
-        break;
-      case "claim_win":
-        await this.handleClaimWin(data.roomId, data.playerId);
+    try {
+      switch (data.type) {
+        case "join_room":
+          await this.handleJoinRoom(data.roomId, data.playerId, ws);
+          break;
+        case "submit_title":
+          await this.handleSubmitTitle(data.roomId, data.title, data.playerId);
+          break;
+        case "play_card":
+          await this.handlePlayCard(data.roomId, data.playerId, data.cardIndex);
+          break;
+        case "claim_win":
+          await this.handleClaimWin(data.roomId, data.playerId);
+          break;
+        default:
+          throw new GameError(`Unknown message type: ${data.type}`);
+      }
+    } catch (error) {
+      const handledError = ErrorHandler.handleError(error as Error, 'WebSocketHandler.handleMessage', data.playerId);
+      if (handledError instanceof GameError) {
+        this.broadcastManager.broadcastError(data.playerId, handledError.message, this.wsMap);
+      } else {
+        this.broadcastManager.broadcastError(data.playerId, "An unexpected error occurred", this.wsMap);
+      }
     }
-  }catch(error){
-    console.error("Error handling messgae:", error);
-    if( error instanceof GameError){
-      this.broadcastManager.broadcastError(data.playerId,error.message,this.wsMap);
-    }else{
-      this.broadcastManager.broadcastError(data.playerId,"An unexpected error occured",this.wsMap);
-    }
-  }
   }
 
   private async handleJoinRoom(

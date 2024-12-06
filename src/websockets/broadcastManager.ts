@@ -3,25 +3,54 @@ import RedisManager from "@/handlers/redisManager";
 import GameState from "@/model/gameState";
 
 export default class BroadCastManager {
+  private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(private redisManager: RedisManager) {}
 
-  async addClient(playerId: string,roomId:string, ws: WebSocket) {
-    await this.redisManager.setPlayerConnection(playerId,roomId,true);
+  async addClient(playerId: string, roomId: string, ws: WebSocket) {
+    await this.redisManager.setPlayerConnection(playerId, roomId, true);
 
-    const heartbeat = setInterval( async ()=>{
-      if(ws.readyState == WebSocket.OPEN){
-        ws.ping()
-      }else{
-          clearInterval(heartbeat)
-          await this.redisManager.handlePlayerDisconnect(playerId)
+    // Clear any existing heartbeat interval
+    this.clearHeartbeat(playerId);
+
+    // Set new heartbeat
+    const heartbeat = setInterval(async () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      } else {
+        this.clearHeartbeat(playerId);
+        await this.redisManager.handlePlayerDisconnect(playerId);
       }
-    },60000)
+    }, 60000);
+
+    this.heartbeatIntervals.set(playerId, heartbeat);
 
     ws.on('close', async () => {
-      clearInterval(heartbeat);
+      this.clearHeartbeat(playerId);
       await this.redisManager.handlePlayerDisconnect(playerId);
-    }); 
+    });
+
+    ws.on('error', async () => {
+      this.clearHeartbeat(playerId);
+      await this.redisManager.handlePlayerDisconnect(playerId);
+    });
+  }
+
+  private clearHeartbeat(playerId: string) {
+    const interval = this.heartbeatIntervals.get(playerId);
+    if (interval) {
+      clearInterval(interval);
+      this.heartbeatIntervals.delete(playerId);
+    }
+  }
+
+  // Add cleanup method
+  async cleanup() {
+    for (const [playerId, interval] of this.heartbeatIntervals.entries()) {
+      clearInterval(interval);
+      await this.redisManager.handlePlayerDisconnect(playerId);
+    }
+    this.heartbeatIntervals.clear();
   }
 
   async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>, messageType?:string): Promise<void> {
@@ -45,10 +74,6 @@ export default class BroadCastManager {
   }
 
   async broadcastLobby(roomId:string, wsMap:Map<string,WebSocket>) : Promise<void>{
-    // const [players, connectedPlayers] = await Promise.all([
-    //   this.redisManager.getRoomPlayers(roomId),
-    //   this.redisManager.getConnectedPlayers(roomId)
-    // ])
     const players =  await this.redisManager.getRoomPlayers(roomId);
 
     const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)

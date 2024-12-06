@@ -1,27 +1,42 @@
 import { createClient, RedisClientType } from "redis";
 import GameState, {Player} from "@/model/gameState";
+import { ErrorHandler } from '@/utils/ErrorHandler';
+import { GameError } from "@/utils/GameError";
 
 export default class RedisManager {
   private client: RedisClientType;
+  private static instance :RedisManager;
 
-  constructor() {
+  private constructor() {
     this.client = createClient();
     this.client.connect();
   }
+
+  public static getInstance(): RedisManager{
+    if(!RedisManager.instance){
+      this.instance= new RedisManager
+    }
+    return RedisManager.instance;
+  }
+
+
   async roomExists(roomId: string): Promise<boolean> {
     const exists = await this.client.exists(`room:${roomId}`)
     return exists === 1;
   }
 
   async createRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
-    await this.client.multi()
-      .hSet(`room:${roomId}`, "state", "lobby")
-      .hSet(`room:${roomId}:players`, playerId, JSON.stringify
-        ({
+    try {
+      await this.client.multi()
+        .hSet(`room:${roomId}`, "state", "lobby")
+        .hSet(`room:${roomId}:players`, playerId, JSON.stringify({
           name: playerName,
           connected: "true"
         }))
-      .exec()
+        .exec();
+    } catch (error) {
+      throw ErrorHandler.handleError(error as Error, 'RedisManager.createRoom', playerId);
+    }
   }
 
   async addPlayerToRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
@@ -86,11 +101,15 @@ export default class RedisManager {
   }
 
   async getGameState(roomId: string): Promise<GameState> {
-    const gameState = await this.client.get(`room:${roomId}:gameState`);
-    if (!gameState) {
-      throw new Error("Game state not found");
+    try {
+      const gameState = await this.client.get(`room:${roomId}:gameState`);
+      if (!gameState) {
+        throw new GameError("Game state not found");
+      }
+      return JSON.parse(gameState);
+    } catch (error) {
+      throw ErrorHandler.handleError(error as Error, 'RedisManager.getGameState');
     }
-    return JSON.parse(gameState);
   }
 
   async setGameStatus(roomId: string, status: string): Promise<void> {

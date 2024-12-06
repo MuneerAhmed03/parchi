@@ -1,5 +1,6 @@
 import RedisManager from "@/handlers/redisManager";
 import { GameError } from "@/utils/GameError";
+import { ErrorHandler } from '@/utils/ErrorHandler';
 
 interface Chit {
   title: string;
@@ -30,25 +31,34 @@ export default class GameLogic {
     playerId: string,
     cardIndex: number,
   ): Promise<void> {
-    const gameState = await this.redisManager.getGameState(roomId);
-    if (gameState.gameStatus !== "inProgress") {
-      throw new GameError("Game is not in progress");
+    try {
+      const gameState = await this.redisManager.getGameState(roomId);
+      
+      if (gameState.gameStatus !== "inProgress") {
+        throw new GameError("Game is not in progress");
+      }
+
+      const playerIndex = gameState.players.findIndex(player => player.id === playerId);
+      if (playerIndex !== gameState.currentPlayerIndex) {
+        throw new GameError("Not your turn");
+      }
+
+      if (cardIndex >= gameState.hands[playerIndex].length) {
+        throw new GameError("Invalid card index");
+      }
+
+      const card = gameState.hands[playerIndex][cardIndex];
+      gameState.hands[playerIndex].splice(cardIndex, 1);
+
+      const nextPlayerIndex =
+        (gameState.currentPlayerIndex + 1) % gameState.players.length;
+      gameState.hands[nextPlayerIndex].push(card);
+      gameState.currentPlayerIndex = nextPlayerIndex;
+
+      await this.redisManager.saveGameState(roomId, gameState);
+    } catch (error) {
+      throw ErrorHandler.handleError(error as Error, 'GameLogic.playCard', playerId);
     }
-
-    const playerIndex = gameState.players.findIndex(player => player.id === playerId);
-    if (playerIndex !== gameState.currentPlayerIndex) {
-      throw new GameError("Not your turn");
-    }
-
-    const card = gameState.hands[playerIndex][cardIndex];
-    gameState.hands[playerIndex].splice(cardIndex, 1);
-
-    const nextPlayerIndex =
-      (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    gameState.hands[nextPlayerIndex].push(card);
-    gameState.currentPlayerIndex = nextPlayerIndex;
-
-    await this.redisManager.saveGameState(roomId, gameState);
   }
 
   async claimWin(roomId: string, playerId: string): Promise<boolean> {

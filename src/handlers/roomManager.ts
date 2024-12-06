@@ -7,7 +7,7 @@ export default class RoomManager {
   private roomIdGenerator: RoomIdGenerator;
 
   constructor() {
-    this.redisManager = new RedisManager();
+    this.redisManager = RedisManager.getInstance();
     this.roomIdGenerator = RoomIdGenerator.getInstance(this.redisManager)
   }
 

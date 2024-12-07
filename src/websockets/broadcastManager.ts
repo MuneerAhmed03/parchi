@@ -10,10 +10,8 @@ export default class BroadCastManager {
   async addClient(playerId: string, roomId: string, ws: WebSocket) {
     await this.redisManager.setPlayerConnection(playerId, roomId, true);
 
-    // Clear any existing heartbeat interval
     this.clearHeartbeat(playerId);
 
-    // Set new heartbeat
     const heartbeat = setInterval(async () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.ping();
@@ -74,9 +72,13 @@ export default class BroadCastManager {
   }
 
   async broadcastLobby(roomId:string, wsMap:Map<string,WebSocket>) : Promise<void>{
+    console.log("lobby broadcast called");
+    try {
+      console.log("room id passed to broadcast lobby:",roomId);
     const players =  await this.redisManager.getRoomPlayers(roomId);
-
+    console.log("players",players);
     const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
+    console.log("connected players",connectedPlayers);
     for (const player of connectedPlayers){
       const ws = wsMap.get(player.id);
       if(ws?.readyState === WebSocket.OPEN){
@@ -87,6 +89,8 @@ export default class BroadCastManager {
           })
         )
       }
+    }}catch(error){
+      console.log("lobby broadcast error",error);
     }
   }
 

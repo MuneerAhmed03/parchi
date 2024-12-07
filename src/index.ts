@@ -47,6 +47,7 @@ app.post("/create-room", async (req, res, next) => {
 });
 
 app.post("/join-room", async (req, res) => {
+  console.log("join room endpoint called with body:", req.body);
   const roomId = req.body.roomId;
   const playerId = req.body.playerId;
   const playerName = req.body.playerName;
@@ -57,7 +58,7 @@ app.post("/join-room", async (req, res) => {
 server.on("upgrade", (req, socket, head) => {
   webSocketHandler.onUpgrade(req, socket, head);
 });
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -63,12 +63,13 @@ export default class RedisManager {
 
   async getRoomPlayers(roomId: string): Promise<Player[]> {
     const players = await this.client.hGetAll(`room:${roomId}:players`)
-    return Object.keys(players).map(([key,value])=>{
-      const parsedVal = JSON.parse(value);
+    console.log("redis manager players:",players);
+    return Object.keys(players).map((key)=>{
+      const parsedVal = JSON.parse(players[key]);
       return{
         id:key,
-        name:parsedVal.playerName,
-        isConnected:parsedVal.isConnected
+        name:parsedVal.name,
+        isConnected:parsedVal.connected
       }
     });
   }
@@ -147,12 +148,6 @@ export default class RedisManager {
     }
   }
 
-  // async getConnectedPlayers(roomId: string): Promise<string[]> {
-  //   // const players = await this.client.hGetAll(`room:${roomId}:players`);
-  //   const players =  await this.getRoomPlayers(roomId);
-  //   return players.filter(player => player.)
-
-  // }
 
   async isPlayerConnected(playerId: string, roomId: string): Promise<boolean> {
     const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);

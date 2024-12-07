@@ -47,6 +47,7 @@ export default class WebSocketHandler {
   }
 
   onUpgrade(req: http.IncomingMessage, socket: any, head: Buffer) {
+    console.log("requested");
     const wss = new WebSocketServer({ noServer: true });
     wss.handleUpgrade(req, socket, head, (ws) => {
       this.handleConnection(ws);
@@ -121,6 +122,7 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
+    console.log("room joined requested ");
     this.wsMap.set(playerId,ws);
     await this.broadcastManager.addClient(playerId,roomId,ws)
     await this.broadcastManager.broadcastLobby(roomId, this.wsMap);

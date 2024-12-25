@@ -1,6 +1,6 @@
 import { createClient, RedisClientType } from "redis";
 import GameState, { Player } from "@/model/gameState";
-import { ErrorHandler } from '@/utils/ErrorHandler';
+import { ErrorHandler } from "@/utils/ErrorHandler";
 import { GameError } from "@/utils/GameError";
 import { connect } from "http2";
 
@@ -15,53 +15,70 @@ export default class RedisManager {
 
   public static getInstance(): RedisManager {
     if (!RedisManager.instance) {
-      this.instance = new RedisManager
+      this.instance = new RedisManager();
     }
     return RedisManager.instance;
   }
 
-
   async roomExists(roomId: string): Promise<boolean> {
-    const exists = await this.client.exists(`room:${roomId}`)
+    const exists = await this.client.exists(`room:${roomId}`);
     return exists === 1;
   }
 
-
-  async createRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
+  async createRoom(
+    roomId: string,
+    playerId: string,
+    playerName: string,
+  ): Promise<void> {
     try {
-      console.log(` player ${playerId} created the room ${roomId}`)
-      await this.client.multi()
+      console.log(` player ${playerId} created the room ${roomId}`);
+      await this.client
+        .multi()
         .hSet(`room:${roomId}`, "state", "lobby")
         .expire(`room:${roomId}`, 1800)
-        .hSet(`room:${roomId}:players`, playerId, JSON.stringify({
-          name: playerName,
-          connected: true,
-          title: null
-        }))
+        .hSet(
+          `room:${roomId}:players`,
+          playerId,
+          JSON.stringify({
+            name: playerName,
+            connected: true,
+            title: null,
+          }),
+        )
         .expire(`room:${roomId}:players`, 1800)
         .exec();
     } catch (error) {
-      throw ErrorHandler.handleError(error as Error, 'RedisManager.createRoom', playerId);
+      throw ErrorHandler.handleError(
+        error as Error,
+        "RedisManager.createRoom",
+        playerId,
+      );
     }
   }
 
-  async addPlayerToRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
-    console.log(`${playerId} added to the room`)
+  async addPlayerToRoom(
+    roomId: string,
+    playerId: string,
+    playerName: string,
+  ): Promise<void> {
+    console.log(`${playerId} added to the room`);
     const maxplayers = 4;
     const playerCount = await this.getRoomPlayerCount(roomId);
 
     if (playerCount > maxplayers) {
-      throw new Error("Room Full")
+      throw new Error("Room Full");
     }
 
-    await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify(
-      {
+    await this.client.hSet(
+      `room:${roomId}:players`,
+      playerId,
+      JSON.stringify({
         name: playerName,
         connected: true,
-        title: null
-      }));
+        title: null,
+      }),
+    );
     console.log(`${playerId} successfully added to room ${roomId}`);
-
   }
 
   async removePlayerFromRoom(roomId: string, playerId: string): Promise<void> {
@@ -69,15 +86,15 @@ export default class RedisManager {
   }
 
   async getRoomPlayers(roomId: string): Promise<Player[]> {
-    const players = await this.client.hGetAll(`room:${roomId}:players`)
+    const players = await this.client.hGetAll(`room:${roomId}:players`);
     return Object.keys(players).map((key) => {
       const parsedVal = JSON.parse(players[key]);
       return {
         id: key,
         name: parsedVal.name,
         isConnected: parsedVal.connected,
-        title: parsedVal.title
-      }
+        title: parsedVal.title,
+      };
     });
   }
 
@@ -85,17 +102,26 @@ export default class RedisManager {
     return await this.client.hLen(`room:${roomId}:players`);
   }
 
-  async submitTitleAndCheck(roomId: string, title: string, playerId: string): Promise<boolean> {
+  async submitTitleAndCheck(
+    roomId: string,
+    title: string,
+    playerId: string,
+  ): Promise<boolean> {
     // console.log(`submit title and check arguments: title:${title} room:${roomId} player:${playerId}`)
-    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId)
+    const playerData = await this.client.hGet(
+      `room:${roomId}:players`,
+      playerId,
+    );
 
     if (!playerData) {
       throw new Error(`player ${playerId} doesnt exist in room ${roomId}`);
     }
     const player = JSON.parse(playerData);
-    player.title = title
+    player.title = title;
 
-    const result = await this.client.multi().hSet(`room:${roomId}:players`, playerId, JSON.stringify(player))
+    const result = await this.client
+      .multi()
+      .hSet(`room:${roomId}:players`, playerId, JSON.stringify(player))
       .sAdd(`room:${roomId}:titles`, title)
       .sCard(`room:${roomId}:titles`)
       .hLen(`room:${roomId}:players`)
@@ -104,9 +130,11 @@ export default class RedisManager {
     if (!result) {
       throw new Error("Redis transaction failed");
     }
-    console.log("submit title query result", result)
+    console.log("submit title query result", result);
     const [, , submittedCount, playerCount] = result;
-    console.log(`submit title result: submitted count:${submittedCount} and playeCount:${playerCount}`)
+    console.log(
+      `submit title result: submitted count:${submittedCount} and playeCount:${playerCount}`,
+    );
     return Number(submittedCount) === 4 && Number(playerCount) === 4;
   }
 
@@ -115,24 +143,36 @@ export default class RedisManager {
   }
 
   async saveGameState(roomId: string, gameState: GameState): Promise<void> {
-    await this.client.set(`room:${roomId}:gameState`, JSON.stringify(gameState))
+    await this.client.set(
+      `room:${roomId}:gameState`,
+      JSON.stringify(gameState),
+    );
     await this.updateTtl(roomId);
   }
 
   async updateTtl(roomId: string) {
-    await this.client.multi().expire(`room:${roomId}:gameState`, 1800).expire(`room:${roomId}`, 1800).expire(`room:${roomId}:titles`, 1800).expire(`room:${roomId}:players`, 1800).exec();
+    await this.client
+      .multi()
+      .expire(`room:${roomId}:gameState`, 1800)
+      .expire(`room:${roomId}`, 1800)
+      .expire(`room:${roomId}:titles`, 1800)
+      .expire(`room:${roomId}:players`, 1800)
+      .exec();
   }
 
   async getGameState(roomId: string): Promise<GameState> {
     try {
-      console.log("game state being retrieved from redis manager:", roomId)
+      console.log("game state being retrieved from redis manager:", roomId);
       const gameState = await this.client.get(`room:${roomId}:gameState`);
       if (!gameState) {
         throw new GameError("Game state not found");
       }
       return JSON.parse(gameState);
     } catch (error) {
-      throw ErrorHandler.handleError(error as Error, 'RedisManager.getGameState');
+      throw ErrorHandler.handleError(
+        error as Error,
+        "RedisManager.getGameState",
+      );
     }
   }
 
@@ -145,7 +185,8 @@ export default class RedisManager {
   }
 
   async removeRoom(roomId: string): Promise<void> {
-    await this.client.multi()
+    await this.client
+      .multi()
       .del(`room:${roomId}`)
       .del(`room:${roomId}:players`)
       .del(`room:${roomId}:titles`)
@@ -162,18 +203,31 @@ export default class RedisManager {
     await this.client.quit();
   }
 
-  async setPlayerConnection(playerId: string, roomId: string, isConnected: boolean): Promise<void> {
-    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);
+  async setPlayerConnection(
+    playerId: string,
+    roomId: string,
+    isConnected: boolean,
+  ): Promise<void> {
+    const playerData = await this.client.hGet(
+      `room:${roomId}:players`,
+      playerId,
+    );
     if (playerData) {
       const player = JSON.parse(playerData);
       player.connected = isConnected;
-      await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify(player));
+      await this.client.hSet(
+        `room:${roomId}:players`,
+        playerId,
+        JSON.stringify(player),
+      );
     }
   }
 
-
   async isPlayerConnected(playerId: string, roomId: string): Promise<boolean> {
-    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId);
+    const playerData = await this.client.hGet(
+      `room:${roomId}:players`,
+      playerId,
+    );
     if (!playerData) return false;
 
     const player = JSON.parse(playerData);
@@ -181,39 +235,54 @@ export default class RedisManager {
   }
 
   async getPlayerRoom(playerId: string): Promise<string | null> {
-    return await this.client.hGet('player_room', playerId) || "unknown";
+    return (await this.client.hGet("player_room", playerId)) || "unknown";
   }
 
   async handlePlayerDisconnect(playerId: string) {
-    const roomId = await this.getPlayerRoom(playerId)
+    const roomId = await this.getPlayerRoom(playerId);
     if (roomId) {
       await this.setPlayerConnection(playerId, roomId, false);
 
-      const connectedPlayers = (await this.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
+      const connectedPlayers = (await this.getRoomPlayers(roomId)).filter(
+        (player) => player.isConnected === true,
+      );
       if (connectedPlayers.length == 0) {
-        await this.cleanupRoom(roomId)
+        await this.cleanupRoom(roomId);
       }
     }
   }
 
-
   async handlePlayerLeft(roomId: string, playerId: string) {
-    const players = await this.getRoomPlayers(roomId)
-    const player = players.find(p => p.id === playerId)
+    const players = await this.getRoomPlayers(roomId);
+    const player = players.find((p) => p.id === playerId);
     if (!player) {
-      throw new GameError("player who left is not in the room")
+      throw new GameError("player who left is not in the room");
     }
-    const title = player.title ?? ""
-    await this.client.multi().hDel(`room:${roomId}:players`, playerId).sRem(`room:${roomId}:titles`, title).exec();
-    if(players.length -1 ===0){
+    const title = player.title ?? "";
+    await this.client
+      .multi()
+      .hDel(`room:${roomId}:players`, playerId)
+      .sRem(`room:${roomId}:titles`, title)
+      .exec();
+    if (players.length - 1 === 0) {
       this.cleanupRoom(roomId);
     }
   }
 
-  async replacePlayer(roomId: string, oldPlayerId: string, newPlayerId: string, newPlayerName: string): Promise<void> {
+  async replacePlayer(
+    roomId: string,
+    oldPlayerId: string,
+    newPlayerId: string,
+    newPlayerName: string,
+  ): Promise<void> {
     const gameState = await this.getGameState(roomId);
-    const playerIndex = gameState.players.findIndex(p => p.id === oldPlayerId);
-    const playerData = await this.client.hGet(`room:${roomId}:players`, oldPlayerId)
+    const playerIndex = gameState.players.findIndex(
+      (p) => p.id === oldPlayerId,
+    );
+    const playerData = await this.client.hGet(
+      `room:${roomId}:players`,
+      oldPlayerId,
+    );
 
     if (playerIndex === -1 || !playerData) {
       throw new GameError("Orignal player not found in game State");
@@ -224,22 +293,27 @@ export default class RedisManager {
     gameState.players[playerIndex] = {
       id: newPlayerId,
       name: newPlayerName,
-      isConnected: true
+      isConnected: true,
     };
 
     await this.saveGameState(roomId, gameState);
-    await this.client.hSet(`room:${roomId}:players`, newPlayerId, JSON.stringify({
-      name: newPlayerName,
-      connected: true, title
-    }))
+    await this.client.hSet(
+      `room:${roomId}:players`,
+      newPlayerId,
+      JSON.stringify({
+        name: newPlayerName,
+        connected: true,
+        title,
+      }),
+    );
 
-    await this.client.hDel(`room:${roomId}:players`, oldPlayerId)
+    await this.client.hDel(`room:${roomId}:players`, oldPlayerId);
   }
 
   async getDisconnectedPlayer(roomId: string): Promise<string | null> {
     const players = await this.getRoomPlayers(roomId);
-    const disconnected = players.find(player => !player.isConnected);
-    return disconnected ? disconnected.id : null
+    const disconnected = players.find((player) => !player.isConnected);
+    return disconnected ? disconnected.id : null;
   }
 
   async cleanupRoom(roomId: string) {
@@ -251,5 +325,4 @@ export default class RedisManager {
 
     await multi.exec();
   }
-
 }

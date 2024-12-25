@@ -11,6 +11,7 @@ repopack-output.md
 *.min.js
 *.json
 *.md
+*.yaml
 
 # Ignore all files in the `public` directory
 public/*

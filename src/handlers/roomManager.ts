@@ -8,22 +8,32 @@ export default class RoomManager {
 
   constructor() {
     this.redisManager = RedisManager.getInstance();
-    this.roomIdGenerator = RoomIdGenerator.getInstance(this.redisManager)
+    this.roomIdGenerator = RoomIdGenerator.getInstance(this.redisManager);
   }
 
-  async createRoom(playerId:string,playerName:string): Promise<string> {
+  async createRoom(playerId: string, playerName: string): Promise<string> {
     const roomId = await this.roomIdGenerator.generateRoomId();
-    await this.redisManager.createRoom(roomId,playerId,playerName);
+    await this.redisManager.createRoom(roomId, playerId, playerName);
     return roomId;
   }
 
-  async joinRoom(roomId: string, playerId: string,playerName:string): Promise<boolean> {
+  async joinRoom(
+    roomId: string,
+    playerId: string,
+    playerName: string,
+  ): Promise<boolean> {
     const gameStatus = await this.redisManager.getGameStatus(roomId);
 
-    if(gameStatus === "inProgress"){
-      const disconnectedPlayerId = await this.redisManager.getDisconnectedPlayer(roomId);
-      if(disconnectedPlayerId){
-        await this.redisManager.replacePlayer(roomId,disconnectedPlayerId,playerId,playerName)
+    if (gameStatus === "inProgress") {
+      const disconnectedPlayerId =
+        await this.redisManager.getDisconnectedPlayer(roomId);
+      if (disconnectedPlayerId) {
+        await this.redisManager.replacePlayer(
+          roomId,
+          disconnectedPlayerId,
+          playerId,
+          playerName,
+        );
         return true;
       }
       return false;
@@ -34,7 +44,7 @@ export default class RoomManager {
       console.log("room full");
       return false;
     }
-    await this.redisManager.addPlayerToRoom(roomId, playerId,playerName);
+    await this.redisManager.addPlayerToRoom(roomId, playerId, playerName);
     return true;
   }
 }

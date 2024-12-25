@@ -6,10 +6,10 @@ import RoomManager from "@/handlers/roomManager";
 import WebSocketHandler from "@/websockets/sockethandler";
 import BroadcastManager from "@/websockets/broadcastManager";
 import bodyParser from "body-parser";
-import { ErrorHandler } from '@/utils/ErrorHandler';
+import { ErrorHandler } from "@/utils/ErrorHandler";
 import { GameError } from "./utils/GameError";
-import { Server } from 'http';
-import cors from "cors"
+import { Server } from "http";
+import cors from "cors";
 
 // process.on('SIGTERM', () => shutdown());
 // process.on('SIGINT', () => shutdown());
@@ -51,9 +51,9 @@ app.post("/join-room", async (req, res) => {
   const roomId = req.body.roomId;
   const playerId = req.body.playerId;
   const playerName = req.body.playerName;
-  const success = await roomManager.joinRoom(roomId, playerId,playerName);
+  const success = await roomManager.joinRoom(roomId, playerId, playerName);
   res.send({ success });
-}); 
+});
 
 server.on("upgrade", (req, socket, head) => {
   webSocketHandler.onUpgrade(req, socket, head);
@@ -64,30 +64,40 @@ server.listen(PORT, () => {
 });
 
 // Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const handledError = ErrorHandler.handleError(err, 'ExpressServer');
-  res.status(500).json({
-    error: handledError instanceof GameError ? handledError.message : 'An unexpected error occurred'
-  });
-});
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    const handledError = ErrorHandler.handleError(err, "ExpressServer");
+    res.status(500).json({
+      error:
+        handledError instanceof GameError
+          ? handledError.message
+          : "An unexpected error occurred",
+    });
+  },
+);
 
 async function shutdown() {
-  console.log('Shutting down gracefully...');
-  
+  console.log("Shutting down gracefully...");
 
-  
   // Close Redis connection
   await redisManager.close();
-  
+
   // Close HTTP server
   server.close(() => {
-    console.log('HTTP server closed');
+    console.log("HTTP server closed");
     process.exit(0);
   });
 
   // Force close after 10 seconds
   setTimeout(() => {
-    console.error('Could not close connections in time, forcefully shutting down');
+    console.error(
+      "Could not close connections in time, forcefully shutting down",
+    );
     process.exit(1);
   }, 10000);
 }

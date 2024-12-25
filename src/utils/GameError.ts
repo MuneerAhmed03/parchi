@@ -4,4 +4,3 @@ export class GameError extends Error {
     this.name = "GameError";
   }
 }
-

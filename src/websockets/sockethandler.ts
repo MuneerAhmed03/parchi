@@ -39,7 +39,7 @@ export default class WebSocketHandler {
     try {
       ws.ping();
     } catch (error) {
-      console.error('Ping failed:', error);
+      console.error("Ping failed:", error);
     }
   }
 
@@ -52,10 +52,10 @@ export default class WebSocketHandler {
         roomId,
         {
           type: "player_disconnect",
-          data: playerId
+          data: playerId,
         },
-        this.wsMap
-      )
+        this.wsMap,
+      );
     }
     await this.redisManager.handlePlayerDisconnect(playerId);
   }
@@ -74,7 +74,7 @@ export default class WebSocketHandler {
         const data = JSON.parse(message);
         await this.handleMessage(ws, data);
       } catch (error) {
-        console.error('Message handling error:', error);
+        console.error("Message handling error:", error);
       }
     });
 
@@ -83,7 +83,7 @@ export default class WebSocketHandler {
     });
 
     ws.on("error", (error) => {
-      console.error('WebSocket error:', error);
+      console.error("WebSocket error:", error);
     });
 
     ws.on("close", async () => {
@@ -110,7 +110,11 @@ export default class WebSocketHandler {
           await this.handleJoinRoom(data.roomId, data.playerId, ws);
           break;
         case "submit_title":
-          await this.handleSubmitTitle(data.data.roomId, data.data.title, data.data.playerId);
+          await this.handleSubmitTitle(
+            data.data.roomId,
+            data.data.title,
+            data.data.playerId,
+          );
           break;
         case "play_card":
           await this.handlePlayCard(data.roomId, data.playerId, data.cardIndex);
@@ -119,19 +123,31 @@ export default class WebSocketHandler {
           await this.handleClaimWin(data.roomId, data.playerId);
           break;
         case "room_exit":
-          await this.handleLeaveRoom(data.roomId,data.player.id)
+          await this.handleLeaveRoom(data.roomId, data.player.id);
         case "restart":
           await this.handleGameRestart(data.roomId);
         default:
           throw new GameError(`Unknown message type: ${data.type}`);
       }
     } catch (error) {
-      const handledError = ErrorHandler.handleError(error as Error, 'WebSocketHandler.handleMessage', data.playerId);
+      const handledError = ErrorHandler.handleError(
+        error as Error,
+        "WebSocketHandler.handleMessage",
+        data.playerId,
+      );
       if (handledError instanceof GameError) {
-        console.log("Broadcasrting error")
-        this.broadcastManager.broadcastError(data.playerId, handledError.message, this.wsMap);
+        console.log("Broadcasrting error");
+        this.broadcastManager.broadcastError(
+          data.playerId,
+          handledError.message,
+          this.wsMap,
+        );
       } else {
-        this.broadcastManager.broadcastError(data.playerId, "An unexpected error occurred", this.wsMap);
+        this.broadcastManager.broadcastError(
+          data.playerId,
+          "An unexpected error occurred",
+          this.wsMap,
+        );
       }
     }
   }
@@ -141,7 +157,6 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
-
     this.wsMap.set(playerId, ws);
 
     const gameStatus = await this.redisManager.getGameStatus(roomId);
@@ -151,77 +166,100 @@ export default class WebSocketHandler {
     } else {
       await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     }
-
   }
 
-  private async handleSubmitTitle(roomId: string, title: string, playerId: string) {
-
-    const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title, playerId);
-    console.log("alltitlkes submitted:", allTitlesSubmitted)
+  private async handleSubmitTitle(
+    roomId: string,
+    title: string,
+    playerId: string,
+  ) {
+    const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(
+      roomId,
+      title,
+      playerId,
+    );
+    console.log("alltitlkes submitted:", allTitlesSubmitted);
     if (allTitlesSubmitted) {
       await this.gameLogic.startGame(roomId);
-      console.log("game started")
+      console.log("game started");
       await this.delay(2000);
-      await this.broadcastManager.broadCastGameState(roomId, this.wsMap, "game_start");
+      await this.broadcastManager.broadCastGameState(
+        roomId,
+        this.wsMap,
+        "game_start",
+      );
     } else {
-      console.log("title submit broadcast")
-      this.broadcastManager.broadcastLobby(roomId, this.wsMap)
+      console.log("title submit broadcast");
+      this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     }
   }
   delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   private async handlePlayCard(
     roomId: string,
     playerId: string,
     cardIndex: number,
   ) {
-
-    await this.gameLogic.playCard(roomId, playerId, cardIndex);;
+    await this.gameLogic.playCard(roomId, playerId, cardIndex);
     await this.broadcastManager.broadCastGameState(roomId, this.wsMap);
     console.log(`${playerId} passes ${cardIndex}`);
   }
 
   private async handleLeaveRoom(roomId: string, playerId: string) {
-    await this.redisManager.removePlayerFromRoom(roomId, playerId)
-    this.wsMap.delete(playerId)
+    await this.redisManager.removePlayerFromRoom(roomId, playerId);
+    this.wsMap.delete(playerId);
     const state = await this.redisManager.getGameStatus(roomId);
     if (state === "lobby") {
-      await this.redisManager.handlePlayerLeft(roomId,playerId)
+      await this.redisManager.handlePlayerLeft(roomId, playerId);
       await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     } else if (state === "inProgress") {
-       this.broadcastManager.broadCastToRoom(
+      this.broadcastManager.broadCastToRoom(
         roomId,
         {
           type: "player_left",
-          data: playerId
+          data: playerId,
         },
-        this.wsMap
-      )
+        this.wsMap,
+      );
     }
   }
 
-  private async handleGameRestart(roomId:string){
+  private async handleGameRestart(roomId: string) {
     await this.gameLogic.startGame(roomId);
     await this.delay(2000);
-      await this.broadcastManager.broadCastGameState(roomId, this.wsMap, "game_start");
+    await this.broadcastManager.broadCastGameState(
+      roomId,
+      this.wsMap,
+      "game_start",
+    );
   }
 
   private async handleClaimWin(roomId: string, playerId: string) {
     const isWinner = await this.gameLogic.claimWin(roomId, playerId);
     if (isWinner) {
-      const name = (await this.redisManager.getRoomPlayers(roomId)).find(obj => obj.id === playerId)?.name || null;
-      this.broadcastManager.broadCastToRoom(roomId, {
-        type: "game_end",
-        winner: name,
-      }, this.wsMap);
+      const name =
+        (await this.redisManager.getRoomPlayers(roomId)).find(
+          (obj) => obj.id === playerId,
+        )?.name || null;
+      this.broadcastManager.broadCastToRoom(
+        roomId,
+        {
+          type: "game_end",
+          winner: name,
+        },
+        this.wsMap,
+      );
       // await this.redisManager.removeRoom(roomId);
-
     } else {
-      this.broadcastManager.broadCastToRoom(roomId, {
-        type: "wrong_claim",
-        text: `${playerId} made wrong thap boink`,
-      }, this.wsMap);
+      this.broadcastManager.broadCastToRoom(
+        roomId,
+        {
+          type: "wrong_claim",
+          text: `${playerId} made wrong thap boink`,
+        },
+        this.wsMap,
+      );
     }
   }
 }

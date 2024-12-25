@@ -7,7 +7,7 @@ export default interface GameState {
 }
 
 export interface PlayerView {
-  playerIndex:number
+  playerIndex: number;
   players: Player[];
   hand: { title: string; id: string }[];
   currentPlayerIndex: number;
@@ -16,8 +16,8 @@ export interface PlayerView {
 }
 
 export interface Player {
-  id:string,
-  name:string,
-  isConnected:boolean
-  title?:string|null
+  id: string;
+  name: string;
+  isConnected: boolean;
+  title?: string | null;
 }

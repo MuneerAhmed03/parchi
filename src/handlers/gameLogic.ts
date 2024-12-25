@@ -1,6 +1,6 @@
 import RedisManager from "@/handlers/redisManager";
 import { GameError } from "@/utils/GameError";
-import { ErrorHandler } from '@/utils/ErrorHandler';
+import { ErrorHandler } from "@/utils/ErrorHandler";
 
 interface Chit {
   title: string;
@@ -32,14 +32,16 @@ export default class GameLogic {
     cardIndex: number,
   ): Promise<void> {
     try {
-      console.log("game Logic:",roomId)
+      console.log("game Logic:", roomId);
       const gameState = await this.redisManager.getGameState(roomId);
-      
+
       if (gameState.gameStatus !== "inProgress") {
         throw new GameError("Game is not in progress");
       }
 
-      const playerIndex = gameState.players.findIndex(player => player.id === playerId);
+      const playerIndex = gameState.players.findIndex(
+        (player) => player.id === playerId,
+      );
       if (playerIndex !== gameState.currentPlayerIndex) {
         throw new GameError("Not your turn");
       }
@@ -58,13 +60,19 @@ export default class GameLogic {
 
       await this.redisManager.saveGameState(roomId, gameState);
     } catch (error) {
-      throw ErrorHandler.handleError(error as Error, 'GameLogic.playCard', playerId);
+      throw ErrorHandler.handleError(
+        error as Error,
+        "GameLogic.playCard",
+        playerId,
+      );
     }
   }
 
   async claimWin(roomId: string, playerId: string): Promise<boolean> {
     const gameState = await this.redisManager.getGameState(roomId);
-    const playerIndex = gameState.players.findIndex(player => player.id === playerId);
+    const playerIndex = gameState.players.findIndex(
+      (player) => player.id === playerId,
+    );
     const hand = gameState.hands[playerIndex];
 
     if (this.verifyWin(hand)) {

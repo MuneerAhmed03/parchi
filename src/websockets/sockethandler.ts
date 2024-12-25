@@ -123,9 +123,11 @@ export default class WebSocketHandler {
           await this.handleClaimWin(data.roomId, data.playerId);
           break;
         case "room_exit":
-          await this.handleLeaveRoom(data.roomId, data.player.id);
+          await this.handleLeaveRoom(data.roomId, data.playerId);
+          break;
         case "restart":
           await this.handleGameRestart(data.roomId);
+          break;
         default:
           throw new GameError(`Unknown message type: ${data.type}`);
       }
@@ -207,7 +209,7 @@ export default class WebSocketHandler {
   }
 
   private async handleLeaveRoom(roomId: string, playerId: string) {
-    await this.redisManager.removePlayerFromRoom(roomId, playerId);
+    // await this.redisManager.removePlayerFromRoom(roomId, playerId);
     this.wsMap.delete(playerId);
     const state = await this.redisManager.getGameStatus(roomId);
     if (state === "lobby") {

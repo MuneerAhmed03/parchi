@@ -51,8 +51,8 @@ app.post("/join-room", async (req, res) => {
   const roomId = req.body.roomId;
   const playerId = req.body.playerId;
   const playerName = req.body.playerName;
-  const success = await roomManager.joinRoom(roomId, playerId, playerName);
-  res.send({ success });
+  const code = await roomManager.joinRoom(roomId, playerId, playerName);
+  res.status(code).end();
 });
 
 server.on("upgrade", (req, socket, head) => {

@@ -81,9 +81,9 @@ export default class RedisManager {
     console.log(`${playerId} successfully added to room ${roomId}`);
   }
 
-  async removePlayerFromRoom(roomId: string, playerId: string): Promise<void> {
-    await this.client.hDel(`room:${roomId}:players`, playerId);
-  }
+  // async removePlayerFromRoom(roomId: string, playerId: string): Promise<void> {
+  //   await this.client.hDel(`room:${roomId}:players`, playerId);
+  // }
 
   async getRoomPlayers(roomId: string): Promise<Player[]> {
     const players = await this.client.hGetAll(`room:${roomId}:players`);

@@ -21,7 +21,11 @@ export default class RoomManager {
     roomId: string,
     playerId: string,
     playerName: string,
-  ): Promise<boolean> {
+  ): Promise<number> {
+    const exists = await this.redisManager.roomExists(roomId);
+    if(!exists){
+      return 404;
+    }
     const gameStatus = await this.redisManager.getGameStatus(roomId);
 
     if (gameStatus === "inProgress") {
@@ -34,17 +38,17 @@ export default class RoomManager {
           playerId,
           playerName,
         );
-        return true;
+        return 200;
       }
-      return false;
+      return 400;
     }
 
     const isRoomFull = await this.redisManager.isRoomFull(roomId);
     if (isRoomFull) {
       console.log("room full");
-      return false;
+      return 400;
     }
     await this.redisManager.addPlayerToRoom(roomId, playerId, playerName);
-    return true;
+    return 200;
   }
 }

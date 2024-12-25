@@ -53,7 +53,6 @@ export default class BroadCastManager {
     const gameState = await this.redisManager.getGameState(roomId);
     const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId))
       .filter(player => player.isConnected === true);
-  
     for (const player of connectedPlayers) {
       const ws = wsMap.get(player.id);
       if (ws?.readyState === WebSocket.OPEN) {
@@ -77,7 +76,7 @@ export default class BroadCastManager {
       console.log("room id passed to broadcast lobby:",roomId);
     const players =  await this.redisManager.getRoomPlayers(roomId);
     console.log("players",players);
-    const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
+    const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)                  
     for (const player of connectedPlayers){
       const ws = wsMap.get(player.id);
       console.log("sending message to: ",player.id);

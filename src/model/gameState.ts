@@ -19,4 +19,5 @@ export interface Player {
   id:string,
   name:string,
   isConnected:boolean
+  title?:string|null
 }

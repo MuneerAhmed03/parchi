@@ -35,7 +35,7 @@ export default class RedisManager {
         .expire(`room:${roomId}`, 1800)
         .hSet(`room:${roomId}:players`, playerId, JSON.stringify({
           name: playerName,
-          connected: "true",
+          connected: true,
           title: null
         }))
         .expire(`room:${roomId}:players`, 1800)
@@ -196,35 +196,49 @@ export default class RedisManager {
     }
   }
 
-  async replacePlayer(roomId:string,oldPlayerId:string,newPlayerId:string,newPlayerName:string):Promise<void>{
-    const gameState =  await this.getGameState(roomId);
-    const playerIndex = gameState.players.findIndex(p=> p.id === oldPlayerId);
+
+  async handlePlayerLeft(roomId: string, playerId: string) {
+    const players = await this.getRoomPlayers(roomId)
+    const player = players.find(p => p.id === playerId)
+    if (!player) {
+      throw new GameError("player who left is not in the room")
+    }
+    const title = player.title ?? ""
+    await this.client.multi().hDel(`room:${roomId}:players`, playerId).sRem(`room:${roomId}:titles`, title).exec();
+    if(players.length -1 ===0){
+      this.cleanupRoom(roomId);
+    }
+  }
+
+  async replacePlayer(roomId: string, oldPlayerId: string, newPlayerId: string, newPlayerName: string): Promise<void> {
+    const gameState = await this.getGameState(roomId);
+    const playerIndex = gameState.players.findIndex(p => p.id === oldPlayerId);
     const playerData = await this.client.hGet(`room:${roomId}:players`, oldPlayerId)
 
-    if(playerIndex === -1 || !playerData){
-        throw new GameError("Orignal player not found in game State");
+    if (playerIndex === -1 || !playerData) {
+      throw new GameError("Orignal player not found in game State");
     }
 
     const title = JSON.parse(playerData).title;
 
-    gameState.players[playerIndex]={
-      id:newPlayerId,
-      name:newPlayerName,
+    gameState.players[playerIndex] = {
+      id: newPlayerId,
+      name: newPlayerName,
       isConnected: true
     };
 
-    await this.saveGameState(roomId,gameState);
-    await this.client.hSet(`room:${roomId}:players`,newPlayerId,JSON.stringify({
-      name:newPlayerName,
-      connected:true,                                                                  title                                                      
+    await this.saveGameState(roomId, gameState);
+    await this.client.hSet(`room:${roomId}:players`, newPlayerId, JSON.stringify({
+      name: newPlayerName,
+      connected: true, title
     }))
 
-    await this.client.hDel(`room:${roomId}:players`,oldPlayerId)
+    await this.client.hDel(`room:${roomId}:players`, oldPlayerId)
   }
 
-  async getDisconnectedPlayer(roomId:string):Promise<string|null>{
+  async getDisconnectedPlayer(roomId: string): Promise<string | null> {
     const players = await this.getRoomPlayers(roomId);
-    const disconnected = players.find(player=>!player.isConnected);
+    const disconnected = players.find(player => !player.isConnected);
     return disconnected ? disconnected.id : null
   }
 

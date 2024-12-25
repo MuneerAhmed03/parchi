@@ -11,8 +11,8 @@ import { GameError } from "./utils/GameError";
 import { Server } from 'http';
 import cors from "cors"
 
-process.on('SIGTERM', () => shutdown());
-process.on('SIGINT', () => shutdown());
+// process.on('SIGTERM', () => shutdown());
+// process.on('SIGINT', () => shutdown());
 
 const app = express();
 app.use(cors());
@@ -58,7 +58,7 @@ app.post("/join-room", async (req, res) => {
 server.on("upgrade", (req, socket, head) => {
   webSocketHandler.onUpgrade(req, socket, head);
 });
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8082;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
@@ -74,8 +74,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 async function shutdown() {
   console.log('Shutting down gracefully...');
   
-  // Close WebSocket connections
-  await broadcastManager.cleanup();
+
   
   // Close Redis connection
   await redisManager.close();

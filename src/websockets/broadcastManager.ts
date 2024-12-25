@@ -1,73 +1,73 @@
 import WebSocket from "ws";
 import RedisManager from "@/handlers/redisManager";
-import GameState from "@/model/gameState";
+import GameState, {PlayerView} from "@/model/gameState";
 
 export default class BroadCastManager {
   private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(private redisManager: RedisManager) {}
 
-  async addClient(playerId: string, roomId: string, ws: WebSocket) {
-    await this.redisManager.setPlayerConnection(playerId, roomId, true);
+  // async addClient(playerId: string, roomId: string, ws: WebSocket) {
+  //   await this.redisManager.setPlayerConnection(playerId, roomId, true);
 
-    this.clearHeartbeat(playerId);
+  //   this.clearHeartbeat(playerId);
 
-    const heartbeat = setInterval(async () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.ping();
-      } else {
-        this.clearHeartbeat(playerId);
-        await this.redisManager.handlePlayerDisconnect(playerId);
-      }
-    }, 60000);
+  //   const heartbeat = setInterval(async () => {
+  //     if (ws.readyState === WebSocket.OPEN) {
+  //       ws.ping();
+  //     } else {
+  //       this.clearHeartbeat(playerId);
+  //       await this.redisManager.handlePlayerDisconnect(playerId);
+  //     }
+  //   }, 60000);
 
-    this.heartbeatIntervals.set(playerId, heartbeat);
+  //   this.heartbeatIntervals.set(playerId, heartbeat);
 
-    ws.on('close', async () => {
-      this.clearHeartbeat(playerId);
-      await this.redisManager.handlePlayerDisconnect(playerId);
-    });
+  //   ws.on('close', async () => {
+  //     this.clearHeartbeat(playerId);
+  //     await this.redisManager.handlePlayerDisconnect(playerId);
+  //   });
 
-    ws.on('error', async () => {
-      this.clearHeartbeat(playerId);
-      await this.redisManager.handlePlayerDisconnect(playerId);
-    });
-  }
+  //   ws.on('error', async () => {
+  //     this.clearHeartbeat(playerId);
+  //     await this.redisManager.handlePlayerDisconnect(playerId);
+  //   });
+  // }
 
-  private clearHeartbeat(playerId: string) {
-    const interval = this.heartbeatIntervals.get(playerId);
-    if (interval) {
-      clearInterval(interval);
-      this.heartbeatIntervals.delete(playerId);
-    }
-  }
+  // private clearHeartbeat(playerId: string) {
+  //   const interval = this.heartbeatIntervals.get(playerId);
+  //   if (interval) {
+  //     clearInterval(interval);
+  //     this.heartbeatIntervals.delete(playerId);
+  //   }
+  // }
+  // async cleanup() {
+  //   for (const [playerId, interval] of this.heartbeatIntervals.entries()) {
+  //     clearInterval(interval);
+  //     await this.redisManager.handlePlayerDisconnect(playerId);
+  //   }
+  //   this.heartbeatIntervals.clear();
+  // }
 
-  // Add cleanup method
-  async cleanup() {
-    for (const [playerId, interval] of this.heartbeatIntervals.entries()) {
-      clearInterval(interval);
-      await this.redisManager.handlePlayerDisconnect(playerId);
-    }
-    this.heartbeatIntervals.clear();
-  }
-
-  async broadCastGameState(roomId: string, wsMap:Map<string,WebSocket>, messageType?:string): Promise<void> {
-    console.log("game state broadcasting attempt")
+  async broadCastGameState(roomId: string, wsMap: Map<string, WebSocket>, messageType?: string): Promise<void> {
     const gameState = await this.redisManager.getGameState(roomId);
-
-    const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
-    for ( const player of connectedPlayers){
-        const ws =  wsMap.get(player.id);
-        if(ws?.readyState === WebSocket.OPEN){
-          const playerIndex = gameState.players.findIndex(x => x.id === player.id);
-          const playerView = this.getPlayerView(gameState,playerIndex);
+    const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId))
+      .filter(player => player.isConnected === true);
+  
+    for (const player of connectedPlayers) {
+      const ws = wsMap.get(player.id);
+      if (ws?.readyState === WebSocket.OPEN) {
+        const playerIndex = gameState.players.findIndex(x => x.id === player.id);
+        if (playerIndex !== -1) {
+          const playerView = this.getPlayerView(gameState, playerIndex);
           ws.send(
             JSON.stringify({
               type: messageType ? messageType : "gameState",
               data: playerView,
-            }),
-          );  
+            })
+          );
         }
+      }
     }
   }
 
@@ -78,9 +78,10 @@ export default class BroadCastManager {
     const players =  await this.redisManager.getRoomPlayers(roomId);
     console.log("players",players);
     const connectedPlayers = (await this.redisManager.getRoomPlayers(roomId)).filter(player => player.isConnected === true)
-    console.log("connected players",connectedPlayers);
     for (const player of connectedPlayers){
       const ws = wsMap.get(player.id);
+      console.log("sending message to: ",player.id);
+      // console.log("ws state: ", wsMap);
       if(ws?.readyState === WebSocket.OPEN){
         ws.send(
           JSON.stringify({
@@ -94,8 +95,9 @@ export default class BroadCastManager {
     }
   }
 
-  getPlayerView(gameState: GameState, playerIndex: number) {
+  getPlayerView(gameState: GameState, playerIndex: number) : PlayerView {
     const playerView = {
+      playerIndex,
       players: gameState.players,
       currentPlayerIndex: gameState.currentPlayerIndex,
       gameStatus: gameState.gameStatus,

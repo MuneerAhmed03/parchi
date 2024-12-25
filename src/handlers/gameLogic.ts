@@ -32,6 +32,7 @@ export default class GameLogic {
     cardIndex: number,
   ): Promise<void> {
     try {
+      console.log("game Logic:",roomId)
       const gameState = await this.redisManager.getGameState(roomId);
       
       if (gameState.gameStatus !== "inProgress") {

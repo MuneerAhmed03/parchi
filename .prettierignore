@@ -5,6 +5,8 @@ node_modules
 dist
 build
 
+repopack-output.md
+
 # Ignore specific files
 *.min.js
 *.json

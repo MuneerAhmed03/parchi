@@ -1,20 +1,21 @@
 import { createClient, RedisClientType } from "redis";
-import GameState, {Player} from "@/model/gameState";
+import GameState, { Player } from "@/model/gameState";
 import { ErrorHandler } from '@/utils/ErrorHandler';
 import { GameError } from "@/utils/GameError";
+import { connect } from "http2";
 
 export default class RedisManager {
   private client: RedisClientType;
-  private static instance :RedisManager;
+  private static instance: RedisManager;
 
   private constructor() {
     this.client = createClient();
     this.client.connect();
   }
 
-  public static getInstance(): RedisManager{
-    if(!RedisManager.instance){
-      this.instance= new RedisManager
+  public static getInstance(): RedisManager {
+    if (!RedisManager.instance) {
+      this.instance = new RedisManager
     }
     return RedisManager.instance;
   }
@@ -25,14 +26,19 @@ export default class RedisManager {
     return exists === 1;
   }
 
+
   async createRoom(roomId: string, playerId: string, playerName: string): Promise<void> {
     try {
+      console.log(` player ${playerId} created the room ${roomId}`)
       await this.client.multi()
         .hSet(`room:${roomId}`, "state", "lobby")
+        .expire(`room:${roomId}`, 1800)
         .hSet(`room:${roomId}:players`, playerId, JSON.stringify({
           name: playerName,
-          connected: "true"
+          connected: "true",
+          title: null
         }))
+        .expire(`room:${roomId}:players`, 1800)
         .exec();
     } catch (error) {
       throw ErrorHandler.handleError(error as Error, 'RedisManager.createRoom', playerId);
@@ -51,7 +57,8 @@ export default class RedisManager {
     await this.client.hSet(`room:${roomId}:players`, playerId, JSON.stringify(
       {
         name: playerName,
-        connected: true
+        connected: true,
+        title: null
       }));
     console.log(`${playerId} successfully added to room ${roomId}`);
 
@@ -63,13 +70,13 @@ export default class RedisManager {
 
   async getRoomPlayers(roomId: string): Promise<Player[]> {
     const players = await this.client.hGetAll(`room:${roomId}:players`)
-    console.log("redis manager players:",players);
-    return Object.keys(players).map((key)=>{
+    return Object.keys(players).map((key) => {
       const parsedVal = JSON.parse(players[key]);
-      return{
-        id:key,
-        name:parsedVal.name,
-        isConnected:parsedVal.connected
+      return {
+        id: key,
+        name: parsedVal.name,
+        isConnected: parsedVal.connected,
+        title: parsedVal.title
       }
     });
   }
@@ -78,8 +85,17 @@ export default class RedisManager {
     return await this.client.hLen(`room:${roomId}:players`);
   }
 
-  async submitTitleAndCheck(roomId: string, title: string): Promise<boolean> {
-    const result = await this.client.multi()
+  async submitTitleAndCheck(roomId: string, title: string, playerId: string): Promise<boolean> {
+    // console.log(`submit title and check arguments: title:${title} room:${roomId} player:${playerId}`)
+    const playerData = await this.client.hGet(`room:${roomId}:players`, playerId)
+
+    if (!playerData) {
+      throw new Error(`player ${playerId} doesnt exist in room ${roomId}`);
+    }
+    const player = JSON.parse(playerData);
+    player.title = title
+
+    const result = await this.client.multi().hSet(`room:${roomId}:players`, playerId, JSON.stringify(player))
       .sAdd(`room:${roomId}:titles`, title)
       .sCard(`room:${roomId}:titles`)
       .hLen(`room:${roomId}:players`)
@@ -88,9 +104,10 @@ export default class RedisManager {
     if (!result) {
       throw new Error("Redis transaction failed");
     }
-
-    const [, submittedCount, playerCount] = result;
-    return Number(submittedCount) === Number(playerCount);
+    console.log("submit title query result", result)
+    const [, , submittedCount, playerCount] = result;
+    console.log(`submit title result: submitted count:${submittedCount} and playeCount:${playerCount}`)
+    return Number(submittedCount) === 4 && Number(playerCount) === 4;
   }
 
   async getTitles(roomId: string): Promise<string[]> {
@@ -98,11 +115,17 @@ export default class RedisManager {
   }
 
   async saveGameState(roomId: string, gameState: GameState): Promise<void> {
-    await this.client.set(`room:${roomId}:gameState`, JSON.stringify(gameState));
+    await this.client.set(`room:${roomId}:gameState`, JSON.stringify(gameState))
+    await this.updateTtl(roomId);
+  }
+
+  async updateTtl(roomId: string) {
+    await this.client.multi().expire(`room:${roomId}:gameState`, 1800).expire(`room:${roomId}`, 1800).expire(`room:${roomId}:titles`, 1800).expire(`room:${roomId}:players`, 1800).exec();
   }
 
   async getGameState(roomId: string): Promise<GameState> {
     try {
+      console.log("game state being retrieved from redis manager:", roomId)
       const gameState = await this.client.get(`room:${roomId}:gameState`);
       if (!gameState) {
         throw new GameError("Game state not found");
@@ -171,6 +194,38 @@ export default class RedisManager {
         await this.cleanupRoom(roomId)
       }
     }
+  }
+
+  async replacePlayer(roomId:string,oldPlayerId:string,newPlayerId:string,newPlayerName:string):Promise<void>{
+    const gameState =  await this.getGameState(roomId);
+    const playerIndex = gameState.players.findIndex(p=> p.id === oldPlayerId);
+    const playerData = await this.client.hGet(`room:${roomId}:players`, oldPlayerId)
+
+    if(playerIndex === -1 || !playerData){
+        throw new GameError("Orignal player not found in game State");
+    }
+
+    const title = JSON.parse(playerData).title;
+
+    gameState.players[playerIndex]={
+      id:newPlayerId,
+      name:newPlayerName,
+      isConnected: true
+    };
+
+    await this.saveGameState(roomId,gameState);
+    await this.client.hSet(`room:${roomId}:players`,newPlayerId,JSON.stringify({
+      name:newPlayerName,
+      connected:true,                                                                  title                                                      
+    }))
+
+    await this.client.hDel(`room:${roomId}:players`,oldPlayerId)
+  }
+
+  async getDisconnectedPlayer(roomId:string):Promise<string|null>{
+    const players = await this.getRoomPlayers(roomId);
+    const disconnected = players.find(player=>!player.isConnected);
+    return disconnected ? disconnected.id : null
   }
 
   async cleanupRoom(roomId: string) {

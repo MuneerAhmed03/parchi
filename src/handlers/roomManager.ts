@@ -18,12 +18,22 @@ export default class RoomManager {
   }
 
   async joinRoom(roomId: string, playerId: string,playerName:string): Promise<boolean> {
+    const gameStatus = await this.redisManager.getGameStatus(roomId);
+
+    if(gameStatus === "inProgress"){
+      const disconnectedPlayerId = await this.redisManager.getDisconnectedPlayer(roomId);
+      if(disconnectedPlayerId){
+        await this.redisManager.replacePlayer(roomId,disconnectedPlayerId,playerId,playerName)
+        return true;
+      }
+      return false;
+    }
+
     const isRoomFull = await this.redisManager.isRoomFull(roomId);
     if (isRoomFull) {
       console.log("room full");
       return false;
     }
-    console.log(`started adding ${playerId} to ${roomId}`);
     await this.redisManager.addPlayerToRoom(roomId, playerId,playerName);
     return true;
   }

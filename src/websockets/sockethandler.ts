@@ -21,6 +21,9 @@ export default class WebSocketHandler {
   private async checkConnections(): Promise<void> {
     for (const [playerId, ws] of this.wsMap.entries()) {
       if (!this.isAlive(ws)) {
+        if(!this.wsMap.has(playerId)){
+          continue;
+        }
         await this.handleDisconnect(playerId, ws);
       } else {
         this.ping(ws);
@@ -96,7 +99,8 @@ export default class WebSocketHandler {
           await this.handleJoinRoom(data.roomId, data.playerId, ws);
           break;
         case "submit_title":
-          await this.handleSubmitTitle(data.roomId, data.title, data.playerId);
+          console.log()
+          await this.handleSubmitTitle(data.data.roomId, data.data.title, data.data.playerId);
           break;
         case "play_card":
           await this.handlePlayCard(data.roomId, data.playerId, data.cardIndex);
@@ -104,12 +108,15 @@ export default class WebSocketHandler {
         case "claim_win":
           await this.handleClaimWin(data.roomId, data.playerId);
           break;
+        case "room_exit":
+          
         default:
           throw new GameError(`Unknown message type: ${data.type}`);
       }
     } catch (error) {
       const handledError = ErrorHandler.handleError(error as Error, 'WebSocketHandler.handleMessage', data.playerId);
       if (handledError instanceof GameError) {
+        console.log("Broadcasrting error")
         this.broadcastManager.broadcastError(data.playerId, handledError.message, this.wsMap);
       } else {
         this.broadcastManager.broadcastError(data.playerId, "An unexpected error occurred", this.wsMap);
@@ -122,57 +129,74 @@ export default class WebSocketHandler {
     playerId: string,
     ws: WebSocket,
   ) {
-    console.log("room joined requested ");
-    this.wsMap.set(playerId,ws);
-    await this.broadcastManager.addClient(playerId,roomId,ws)
+
+    this.wsMap.set(playerId, ws);
+    // await this.broadcastManager.addClient(playerId, roomId, ws)
+
+    const gameStatus = await this.redisManager.getGameStatus(roomId);
+
+    if(gameStatus === "inProgress"){
+      await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
+    }else{
     await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
+    }
+
   }
 
-  private async handleSubmitTitle( roomId: string, title: string,playerId:string) {
-      const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title);
-      if (allTitlesSubmitted) {
-        await this.gameLogic.startGame(roomId);
-        console.log("game started")
-        await this.delay(2000);
-        await this.broadcastManager.broadCastGameState(roomId,this.wsMap,"game_start");
-      }else{
-        this.broadcastManager.broadCastToRoom(roomId,{
-          type: "title_submit",
-          data:{
-            playerId,
-            title
-          }
-        },this.wsMap)
-      }
+  private async handleSubmitTitle(roomId: string, title: string, playerId: string) {
+
+    const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(roomId, title, playerId);
+    console.log("alltitlkes submitted:", allTitlesSubmitted)
+    if (allTitlesSubmitted) {
+      await this.gameLogic.startGame(roomId);
+      console.log("game started")
+      await this.delay(2000);
+      await this.broadcastManager.broadCastGameState(roomId, this.wsMap, "game_start");
+    } else {
+      console.log("title submit broadcast")
+      this.broadcastManager.broadcastLobby(roomId,this.wsMap)
+    }
   }
   delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
+  }
   private async handlePlayCard(
     roomId: string,
     playerId: string,
     cardIndex: number,
   ) {
 
-    await this.gameLogic.playCard(roomId, playerId, cardIndex);
-    await this.broadcastManager.broadCastGameState(roomId,this.wsMap);
+    await this.gameLogic.playCard(roomId, playerId, cardIndex);;
+    await this.broadcastManager.broadCastGameState(roomId, this.wsMap);
     console.log(`${playerId} passes ${cardIndex}`);
+  }
+
+  private async handleLeaveRoom(roomId:string,playerId:string){
+    await this.redisManager.removePlayerFromRoom(roomId,playerId)
+    this.wsMap.delete(playerId)
+    const state = await this.redisManager.getGameStatus(roomId);
+    if(state ===  "lobby"){
+    await this.broadcastManager.broadcastLobby(roomId,this.wsMap);
+  }else if(state === "running"){
+
+  }
   }
 
   private async handleClaimWin(roomId: string, playerId: string) {
     const isWinner = await this.gameLogic.claimWin(roomId, playerId);
     if (isWinner) {
+      const name = (await this.redisManager.getRoomPlayers(roomId)).find(obj => obj.id===playerId)?.name ||null;
       this.broadcastManager.broadCastToRoom(roomId, {
         type: "game_end",
-        winner: playerId,
-      },this.wsMap);
+        winner: name,
+      }, this.wsMap);
       await this.redisManager.removeRoom(roomId);
-      
-    }else {
+
+    } else {
       this.broadcastManager.broadCastToRoom(roomId, {
         type: "game_continue",
         text: `${playerId} made wrong thap boink`,
-      },this.wsMap);
+      }, this.wsMap);
     }
   }
 }

@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    image: parchi:latest
+    ports:
+      - "8082:8082"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - parchi-network
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - parchi-network
+
+volumes:
+  redis-data:
+
+networks:
+  parchi-network:
+    driver: bridge

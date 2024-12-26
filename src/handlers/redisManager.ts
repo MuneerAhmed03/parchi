@@ -9,8 +9,31 @@ export default class RedisManager {
   private static instance: RedisManager;
 
   private constructor() {
-    this.client = createClient();
-    this.client.connect();
+    // this.client = createClient();
+    // this.client.connect();
+
+    const redisUrl =
+      process.env.NODE_ENV === "production"
+        ? process.env.REDIS_URL
+        : "redis://127.0.0.1:6379";
+
+    if (!redisUrl) {
+      throw new Error("Redis URL is not defined in the environment variables.");
+    }
+
+    this.client = createClient({
+      url: redisUrl,
+    });
+
+    // Add event listeners for error handling
+    this.client.on("error", (err) => {
+      console.error("Redis connection error:", err);
+    });
+
+    // Connect to Redis
+    this.client.connect().catch((err) => {
+      console.error("Failed to connect to Redis:", err);
+    });
   }
 
   public static getInstance(): RedisManager {

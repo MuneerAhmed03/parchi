@@ -31,8 +31,12 @@ const webSocketHandler = new WebSocketHandler(
   broadcastManager,
 );
 
-app.get("/health", async (req, res) => {
-  res.send("Running");
+app.get("/health1", async (req, res) => {
+  res.send(`Health Check passed from ${process.env.INSTANCE_ID}`);
+});
+
+app.get("/health2", async (req, res) => {
+  res.send(`Health Check passed from ${process.env.INSTANCE_ID}`);
 });
 
 app.post("/create-room", async (req, res, next) => {

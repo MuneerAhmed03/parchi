@@ -13,7 +13,8 @@ export default class RoomManager {
 
   async createRoom(playerId: string, playerName: string): Promise<string> {
     const roomId = await this.roomIdGenerator.generateRoomId();
-    await this.redisManager.createRoom(roomId, playerId, playerName);
+    const instanceId = Math.random() > 0.7 ? "instance_1": "instance_2";
+    await this.redisManager.createRoom(roomId, playerId, playerName,instanceId);
     return roomId;
   }
 

@@ -3,52 +3,8 @@ import RedisManager from "@/handlers/redisManager";
 import GameState, { PlayerView } from "@/model/gameState";
 
 export default class BroadCastManager {
-  private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(private redisManager: RedisManager) {}
-
-  // async addClient(playerId: string, roomId: string, ws: WebSocket) {
-  //   await this.redisManager.setPlayerConnection(playerId, roomId, true);
-
-  //   this.clearHeartbeat(playerId);
-
-  //   const heartbeat = setInterval(async () => {
-  //     if (ws.readyState === WebSocket.OPEN) {
-  //       ws.ping();
-  //     } else {
-  //       this.clearHeartbeat(playerId);
-  //       await this.redisManager.handlePlayerDisconnect(playerId);
-  //     }
-  //   }, 60000);
-
-  //   this.heartbeatIntervals.set(playerId, heartbeat);
-
-  //   ws.on('close', async () => {
-  //     this.clearHeartbeat(playerId);
-  //     await this.redisManager.handlePlayerDisconnect(playerId);
-  //   });
-
-  //   ws.on('error', async () => {
-  //     this.clearHeartbeat(playerId);
-  //     await this.redisManager.handlePlayerDisconnect(playerId);
-  //   });
-  // }
-
-  // private clearHeartbeat(playerId: string) {
-  //   const interval = this.heartbeatIntervals.get(playerId);
-  //   if (interval) {
-  //     clearInterval(interval);
-  //     this.heartbeatIntervals.delete(playerId);
-  //   }
-  // }
-  // async cleanup() {
-  //   for (const [playerId, interval] of this.heartbeatIntervals.entries()) {
-  //     clearInterval(interval);
-  //     await this.redisManager.handlePlayerDisconnect(playerId);
-  //   }
-  //   this.heartbeatIntervals.clear();
-  // }
-
   async broadCastGameState(
     roomId: string,
     wsMap: Map<string, WebSocket>,

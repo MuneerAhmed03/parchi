@@ -52,6 +52,7 @@ export default class RedisManager {
     roomId: string,
     playerId: string,
     playerName: string,
+    instanceId:string
   ): Promise<void> {
     try {
       console.log(` player ${playerId} created the room ${roomId}`);
@@ -69,6 +70,8 @@ export default class RedisManager {
           }),
         )
         .expire(`room:${roomId}:players`, 1800)
+        .set(`room:${roomId}:affinity`,instanceId)
+        .expire(`room:${roomId}:affinity`,1800)
         .exec();
     } catch (error) {
       throw ErrorHandler.handleError(
@@ -180,6 +183,7 @@ export default class RedisManager {
       .expire(`room:${roomId}`, 1800)
       .expire(`room:${roomId}:titles`, 1800)
       .expire(`room:${roomId}:players`, 1800)
+      .expire(`room:${roomId}:affinity`,1800)
       .exec();
   }
 

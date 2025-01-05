@@ -6,7 +6,7 @@ export class ErrorHandler {
     level: "error",
     format: winston.format.combine(
       winston.format.timestamp(),
-      winston.format.json(),
+      winston.format.json()
     ),
     transports: [
       new winston.transports.File({ filename: "error.log" }),
@@ -32,8 +32,8 @@ export class ErrorHandler {
     return new GameError("An unexpected error occurred");
   }
 
-  static logInfo(message: string, context: string, data?: any) {
-    this.logger.info({
+  static logWarning(message: string, context: string, data?: any) {
+    this.logger.warn({
       context,
       message,
       data,

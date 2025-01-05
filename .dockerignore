@@ -3,6 +3,7 @@ node_modules
 pnpm-debug.log
 Dockerfile
 .dockerignore
+.cursorignore
 .git
 .gitignore
 README.md

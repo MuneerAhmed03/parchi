@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import RedisManager from "@/handlers/redisManager";
 import { RoomIdGenerator } from "@/utils/roomIdGenerator";
-import {ErrorHandler} from "@/utils/ErrorHandler";
 
 export default class RoomManager {
   private redisManager: RedisManager;
@@ -13,18 +12,10 @@ export default class RoomManager {
   }
 
   async createRoom(playerId: string, playerName: string): Promise<string> {
-    try {
-      const roomId = await this.roomIdGenerator.generateRoomId();
-      const instanceId = Math.random() > 0.7 ? "instance_1": "instance_2";
-      await this.redisManager.createRoom(roomId, playerId, playerName, instanceId);
-      return roomId;
-    } catch (error) {
-      throw ErrorHandler.handleError(
-        error as Error,
-        "RoomManager.createRoom",
-        playerId
-      );
-    }
+    const roomId = await this.roomIdGenerator.generateRoomId();
+    const instanceId = Math.random() > 0.7 ? "instance_1": "instance_2";
+    await this.redisManager.createRoom(roomId, playerId, playerName,instanceId);
+    return roomId;
   }
 
   async joinRoom(

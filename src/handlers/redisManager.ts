@@ -133,7 +133,6 @@ export default class RedisManager {
     title: string,
     playerId: string,
   ): Promise<boolean> {
-    // console.log(`submit title and check arguments: title:${title} room:${roomId} player:${playerId}`)
     const playerData = await this.client.hGet(
       `room:${roomId}:players`,
       playerId,

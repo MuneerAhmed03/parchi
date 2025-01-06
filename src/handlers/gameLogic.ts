@@ -13,6 +13,7 @@ export default class GameLogic {
   async startGame(roomId: string): Promise<void> {
     const players = await this.redisManager.getRoomPlayers(roomId);
     const titles = await this.redisManager.getTitles(roomId);
+    await this.redisManager.setGameStatus(roomId,"inProgress");
 
     const deck = this.createDeck(titles);
     this.shuffleDeck(deck);

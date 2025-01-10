@@ -51,7 +51,6 @@ app.post("/create-room", async (req, res, next) => {
 });
 
 app.post("/join-room", async (req, res) => {
-  console.log("join room endpoint called with body:", req.body);
   const roomId = req.body.roomId;
   const playerId = req.body.playerId;
   const playerName = req.body.playerName;

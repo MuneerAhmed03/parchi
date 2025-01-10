@@ -20,7 +20,7 @@ export default class WebSocketHandler {
       gameLogic,
       redisManager,
       broadcastManager,
-      this.wsMap
+      this.wsMap,
     );
     setInterval(this.checkConnections.bind(this), this.heartbeatInterval);
   }
@@ -45,7 +45,10 @@ export default class WebSocketHandler {
         const data = JSON.parse(message);
         await this.messageHandler.handleMessage(ws, data);
       } catch (error) {
-        ErrorHandler.handleError(error as Error, "WebSocketHandler.handleConnection");
+        ErrorHandler.handleError(
+          error as Error,
+          "WebSocketHandler.handleConnection",
+        );
       }
     });
   }
@@ -66,6 +69,7 @@ export default class WebSocketHandler {
   private setupCloseHandler(ws: WebSocket) {
     ws.on("close", async () => {
       const playerId = this.getPlayerIdBySocket(ws);
+      // console.log(`${playerId} got disconnected from on close`);
       if (playerId) {
         await this.handleDisconnect(playerId, ws);
       }
@@ -88,12 +92,12 @@ export default class WebSocketHandler {
     ws.terminate();
     this.wsMap.delete(playerId);
     const roomId = await this.redisManager.getPlayerRoom(playerId);
-    
+
     if (roomId) {
       await this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "player_disconnect", data: playerId },
-        this.wsMap
+        this.wsMap,
       );
     }
     await this.redisManager.handlePlayerDisconnect(playerId);

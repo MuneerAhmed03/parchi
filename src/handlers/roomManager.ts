@@ -13,8 +13,13 @@ export default class RoomManager {
 
   async createRoom(playerId: string, playerName: string): Promise<string> {
     const roomId = await this.roomIdGenerator.generateRoomId();
-    const instanceId = Math.random() > 0.7 ? "instance_1": "instance_2";
-    await this.redisManager.createRoom(roomId, playerId, playerName,instanceId);
+    const instanceId = Math.random() > 0.7 ? "instance_1" : "instance_2";
+    await this.redisManager.createRoom(
+      roomId,
+      playerId,
+      playerName,
+      instanceId,
+    );
     return roomId;
   }
 
@@ -24,14 +29,14 @@ export default class RoomManager {
     playerName: string,
   ): Promise<number> {
     const exists = await this.redisManager.roomExists(roomId);
-    if(!exists){
+    if (!exists) {
       return 404;
     }
     const gameStatus = await this.redisManager.getGameStatus(roomId);
-
     if (gameStatus === "inProgress") {
       const disconnectedPlayerId =
         await this.redisManager.getDisconnectedPlayer(roomId);
+      // console.log("disconnected player:",disconnectedPlayerId);
       if (disconnectedPlayerId) {
         await this.redisManager.replacePlayer(
           roomId,

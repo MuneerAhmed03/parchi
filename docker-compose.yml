@@ -12,7 +12,7 @@ services:
       - PORT=8080
     networks:
       - parchi-network
-  
+
   app_2:
     build: .
     image: parchi:latest
@@ -25,7 +25,7 @@ services:
       - INSTANCE_ID=instance_2
       - PORT=8081
     networks:
-      - parchi-network  
+      - parchi-network
 
   redis:
     image: redis:alpine

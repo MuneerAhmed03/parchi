@@ -13,12 +13,12 @@ export default class GameLogic {
   async startGame(roomId: string): Promise<void> {
     const players = await this.redisManager.getRoomPlayers(roomId);
     const titles = await this.redisManager.getTitles(roomId);
-    await this.redisManager.setGameStatus(roomId,"inProgress");
+    await this.redisManager.setGameStatus(roomId, "inProgress");
 
     const deck = this.createDeck(titles);
     this.shuffleDeck(deck);
     const hands = this.dealHands(deck, players.length);
-    console.log("start game function", roomId);
+    // console.log("start game function", roomId);
     await this.redisManager.saveGameState(roomId, {
       players,
       hands,
@@ -33,7 +33,6 @@ export default class GameLogic {
     cardIndex: number,
   ): Promise<void> {
     try {
-      console.log("game Logic:", roomId);
       const gameState = await this.redisManager.getGameState(roomId);
 
       if (gameState.gameStatus !== "inProgress") {

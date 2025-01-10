@@ -10,7 +10,7 @@ export default class MessageHandler {
     private gameLogic: GameLogic,
     private redisManager: RedisManager,
     private broadcastManager: BroadCastManager,
-    private wsMap: Map<string, WebSocket>
+    private wsMap: Map<string, WebSocket>,
   ) {}
 
   async handleMessage(ws: WebSocket, data: any) {
@@ -23,7 +23,7 @@ export default class MessageHandler {
           await this.handleSubmitTitle(
             data.data.roomId,
             data.data.title,
-            data.data.playerId
+            data.data.playerId,
           );
           break;
         case "play_card":
@@ -46,34 +46,58 @@ export default class MessageHandler {
     }
   }
 
-  private async handleJoinRoom(roomId: string, playerId: string, ws: WebSocket) {
+  private async handleJoinRoom(
+    roomId: string,
+    playerId: string,
+    ws: WebSocket,
+  ) {
     this.wsMap.set(playerId, ws);
     const gameStatus = await this.redisManager.getGameStatus(roomId);
-    
+
     if (gameStatus === "inProgress") {
       await this.broadcastManager.broadCastGameState(roomId, this.wsMap);
+      const playerName = (await this.redisManager.getRoomPlayers(roomId)).find(
+        (p) => p.id === playerId,
+      )?.name;
+      await this.broadcastManager.broadCastToRoom(
+        roomId,
+        { type: "player_joined", data: playerName },
+        this.wsMap,
+      );
     } else {
       await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     }
   }
 
-  private async handleSubmitTitle(roomId: string, title: string, playerId: string) {
+  private async handleSubmitTitle(
+    roomId: string,
+    title: string,
+    playerId: string,
+  ) {
     const allTitlesSubmitted = await this.redisManager.submitTitleAndCheck(
       roomId,
       title,
-      playerId
+      playerId,
     );
 
     if (allTitlesSubmitted) {
       await this.gameLogic.startGame(roomId);
       await this.delay(2000);
-      await this.broadcastManager.broadCastGameState(roomId, this.wsMap, "game_start");
+      await this.broadcastManager.broadCastGameState(
+        roomId,
+        this.wsMap,
+        "game_start",
+      );
     } else {
       await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     }
   }
 
-  private async handlePlayCard(roomId: string, playerId: string, cardIndex: number) {
+  private async handlePlayCard(
+    roomId: string,
+    playerId: string,
+    cardIndex: number,
+  ) {
     await this.gameLogic.playCard(roomId, playerId, cardIndex);
     await this.broadcastManager.broadCastGameState(roomId, this.wsMap);
   }
@@ -81,15 +105,17 @@ export default class MessageHandler {
   private async handleLeaveRoom(roomId: string, playerId: string) {
     this.wsMap.delete(playerId);
     const state = await this.redisManager.getGameStatus(roomId);
-    
+
     if (state === "lobby") {
       await this.redisManager.handlePlayerLeft(roomId, playerId);
       await this.broadcastManager.broadcastLobby(roomId, this.wsMap);
     } else if (state === "inProgress") {
+      // console.log(`${playerId} left room from handle leave room`)
+      await this.redisManager.handlePlayerDisconnect(playerId);
       await this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "player_left", data: playerId },
-        this.wsMap
+        this.wsMap,
       );
     }
   }
@@ -97,25 +123,29 @@ export default class MessageHandler {
   private async handleGameRestart(roomId: string) {
     await this.gameLogic.startGame(roomId);
     await this.delay(2000);
-    await this.broadcastManager.broadCastGameState(roomId, this.wsMap, "game_start");
+    await this.broadcastManager.broadCastGameState(
+      roomId,
+      this.wsMap,
+      "game_start",
+    );
   }
 
   private async handleClaimWin(roomId: string, playerId: string) {
     const isWinner = await this.gameLogic.claimWin(roomId, playerId);
-    
+
     if (isWinner) {
       const players = await this.redisManager.getRoomPlayers(roomId);
-      const winner = players.find(p => p.id === playerId);
+      const winner = players.find((p) => p.id === playerId);
       await this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "game_end", winner: winner?.name || null },
-        this.wsMap
+        this.wsMap,
       );
     } else {
       await this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "wrong_claim", text: `${playerId} made wrong thap boink` },
-        this.wsMap
+        this.wsMap,
       );
     }
   }
@@ -124,21 +154,25 @@ export default class MessageHandler {
     const handledError = ErrorHandler.handleError(
       error,
       "MessageHandler.handleMessage",
-      playerId
+      playerId,
     );
 
     if (handledError instanceof GameError) {
-      this.broadcastManager.broadcastError(playerId, handledError.message, this.wsMap);
+      this.broadcastManager.broadcastError(
+        playerId,
+        handledError.message,
+        this.wsMap,
+      );
     } else {
       this.broadcastManager.broadcastError(
         playerId,
         "An unexpected error occurred",
-        this.wsMap
+        this.wsMap,
       );
     }
   }
 
   private delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
-} 
+}

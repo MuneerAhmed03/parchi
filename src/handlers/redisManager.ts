@@ -52,10 +52,9 @@ export default class RedisManager {
     roomId: string,
     playerId: string,
     playerName: string,
-    instanceId:string
+    instanceId: string,
   ): Promise<void> {
     try {
-      console.log(` player ${playerId} created the room ${roomId}`);
       await this.client
         .multi()
         .hSet(`room:${roomId}`, "state", "lobby")
@@ -70,8 +69,10 @@ export default class RedisManager {
           }),
         )
         .expire(`room:${roomId}:players`, 1800)
-        .set(`room:${roomId}:affinity`,instanceId)
-        .expire(`room:${roomId}:affinity`,1800)
+        .set(`room:${roomId}:affinity`, instanceId)
+        .expire(`room:${roomId}:affinity`, 1800)
+        .set(`player:${playerId}:room`, roomId)
+        .expire(`player:${playerId}:room`, 7200)
         .exec();
     } catch (error) {
       throw ErrorHandler.handleError(
@@ -87,7 +88,6 @@ export default class RedisManager {
     playerId: string,
     playerName: string,
   ): Promise<void> {
-    console.log(`${playerId} added to the room`);
     const maxplayers = 4;
     const playerCount = await this.getRoomPlayerCount(roomId);
 
@@ -95,16 +95,20 @@ export default class RedisManager {
       throw new Error("Room Full");
     }
 
-    await this.client.hSet(
-      `room:${roomId}:players`,
-      playerId,
-      JSON.stringify({
-        name: playerName,
-        connected: true,
-        title: null,
-      }),
-    );
-    console.log(`${playerId} successfully added to room ${roomId}`);
+    await this.client
+      .multi()
+      .hSet(
+        `room:${roomId}:players`,
+        playerId,
+        JSON.stringify({
+          name: playerName,
+          connected: true,
+          title: null,
+        }),
+      )
+      .set(`player:${playerId}:room`, roomId)
+      .expire(`player:${playerId}:room`, 7200)
+      .exec();
   }
 
   // async removePlayerFromRoom(roomId: string, playerId: string): Promise<void> {
@@ -155,11 +159,8 @@ export default class RedisManager {
     if (!result) {
       throw new Error("Redis transaction failed");
     }
-    console.log("submit title query result", result);
+
     const [, , submittedCount, playerCount] = result;
-    console.log(
-      `submit title result: submitted count:${submittedCount} and playeCount:${playerCount}`,
-    );
     return Number(submittedCount) === 4 && Number(playerCount) === 4;
   }
 
@@ -182,13 +183,12 @@ export default class RedisManager {
       .expire(`room:${roomId}`, 1800)
       .expire(`room:${roomId}:titles`, 1800)
       .expire(`room:${roomId}:players`, 1800)
-      .expire(`room:${roomId}:affinity`,1800)
+      .expire(`room:${roomId}:affinity`, 1800)
       .exec();
   }
 
   async getGameState(roomId: string): Promise<GameState> {
     try {
-      console.log("game state being retrieved from redis manager:", roomId);
       const gameState = await this.client.get(`room:${roomId}:gameState`);
       if (!gameState) {
         throw new GameError("Game state not found");
@@ -238,9 +238,12 @@ export default class RedisManager {
       `room:${roomId}:players`,
       playerId,
     );
+    // console.log("player from hget set connection:", playerData)
+
     if (playerData) {
       const player = JSON.parse(playerData);
       player.connected = isConnected;
+      // console.log(`${player} from set connection`)
       await this.client.hSet(
         `room:${roomId}:players`,
         playerId,
@@ -261,7 +264,7 @@ export default class RedisManager {
   }
 
   async getPlayerRoom(playerId: string): Promise<string | null> {
-    return (await this.client.hGet("player_room", playerId)) || "unknown";
+    return (await this.client.get(`player:${playerId}:room`)) || null;
   }
 
   async handlePlayerDisconnect(playerId: string) {
@@ -289,6 +292,7 @@ export default class RedisManager {
       .multi()
       .hDel(`room:${roomId}:players`, playerId)
       .sRem(`room:${roomId}:titles`, title)
+      .del(`player:${playerId}:room`)
       .exec();
     if (players.length - 1 === 0) {
       this.cleanupRoom(roomId);

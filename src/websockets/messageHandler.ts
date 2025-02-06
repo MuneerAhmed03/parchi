@@ -112,7 +112,7 @@ export default class MessageHandler {
     } else if (state === "inProgress") {
       // console.log(`${playerId} left room from handle leave room`)
       await this.redisManager.handlePlayerDisconnect(playerId);
-      await this.broadcastManager.broadCastToRoom(
+      this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "player_left", data: playerId },
         this.wsMap,

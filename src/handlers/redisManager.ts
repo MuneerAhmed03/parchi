@@ -4,6 +4,8 @@ import { ErrorHandler } from "@/utils/ErrorHandler";
 import { GameError } from "@/utils/GameError";
 import { connect } from "http2";
 
+
+
 export default class RedisManager {
   private client: RedisClientType;
   private static instance: RedisManager;

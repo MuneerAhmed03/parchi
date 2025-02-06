@@ -94,7 +94,7 @@ export default class WebSocketHandler {
     const roomId = await this.redisManager.getPlayerRoom(playerId);
 
     if (roomId) {
-      await this.broadcastManager.broadCastToRoom(
+      this.broadcastManager.broadCastToRoom(
         roomId,
         { type: "player_disconnect", data: playerId },
         this.wsMap,
